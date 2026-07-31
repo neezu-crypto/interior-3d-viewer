@@ -455,6 +455,13 @@
       "$failureId": {
         ".write": false
       }
+    },
+
+    "adminCenter": {
+      "streamerPermissions": {
+        ".read": false,
+        ".write": false
+      }
     }
   }
 }
