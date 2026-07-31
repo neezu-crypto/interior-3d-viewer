@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>스트리머 배경시장 · 방송 배경</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: #0d0c0b;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 고정 16:9 비율로 중앙 정렬하고, 남는 영역은 레터박스(어두운 여백) 처리.
+     devbar가 자기 높이만큼 차지하고 #app이 나머지 공간을 flex로 채우므로,
+     JS(fitCanvas)에서도 window 전체가 아니라 #app의 실제 크기를 기준으로 계산한다. */
+  #app {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0d0c0b;
+  }
+
+  #scene {
+    display: block;
+    touch-action: none;
+  }
+
+  /* 은은한 비네트 */
+  #vignette {
+    position: absolute;
+    pointer-events: none;
+    --vig-strength: 0.35;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,var(--vig-strength)) 100%);
+  }
+
+  #warmOverlay {
+    position: absolute;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    background: rgba(255,170,80,0);
+  }
+
+  #loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #0d0c0b;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    transition: opacity 0.6s ease;
+    z-index: 20;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  #sidePanel {
+    position: absolute;
+    top: 50%; right: 8%;
+    transform: translateY(-50%);
+    width: 250px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(20, 18, 16, 0.55);
+    backdrop-filter: blur(6px);
+    color: rgba(255,255,255,0.88);
+    font-size: 12px;
+    z-index: 10;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+  }
+  #sidePanel::-webkit-scrollbar { width: 6px; }
+  #sidePanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 3px; }
+
+  #panelHandle {
+    cursor: grab;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -14px -14px 8px -14px;
+    padding: 7px 0;
+    border-radius: 14px 14px 0 0;
+    touch-action: none;
+    transition: background 0.15s ease;
+  }
+  #panelHandle:hover { background: rgba(255,255,255,0.06); }
+  #panelHandle:active { cursor: grabbing; }
+  #panelHandle .panel-grip {
+    width: 32px; height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.3);
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin: 0 0 12px;
+  }
+
+  .panel-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0 0 14px;
+  }
+
+  .auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
+  #authStatus, #timeStatus {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #authBtn, #timeToggleBtn {
+    flex: none;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.9);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  #authBtn:hover, #timeToggleBtn:hover { background: rgba(255,255,255,0.14); }
+  #authBtn:disabled { opacity: 0.5; cursor: default; }
+
+  .preset-save-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  #presetNameInput {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    outline: none;
+  }
+  #presetNameInput::placeholder { color: rgba(255,255,255,0.4); }
+  #presetNameInput:focus { border-color: rgba(232, 166, 87, 0.6); }
+  #presetSaveBtn {
+    flex: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(232, 166, 87, 0.85);
+    color: #1a1410;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #presetSaveBtn:hover { background: #e8a657; }
+
+  .panel-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.14);
+    margin: 12px 0;
+  }
+
+  .preset-empty {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+  }
+  .preset-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .preset-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.88);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+  }
+  .preset-btn {
+    flex: none;
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.85);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  .preset-btn:hover { border-color: rgba(232, 166, 87, 0.6); }
+  .preset-btn--del {
+    color: rgba(255,255,255,0.5);
+    padding: 4px 7px;
+  }
+  .preset-btn--del:hover { color: #e08a6a; border-color: rgba(224, 138, 106, 0.6); }
+
+  /* 다른 제작 게임 홍보용 상단 바 - 넘칠 때만 JS가 자동 스크롤(마퀴) 처리 */
+  .devbar {
+    flex: none;
+    background: #0e1116;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+    z-index: 30;
+  }
+  .devbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 7px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .devbar-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .devbar-viewport { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .devbar-track { display: flex; gap: 8px; width: max-content; }
+  .devbar-track.auto-scroll { animation: devbar-scroll var(--devbar-duration, 20s) linear infinite; }
+  .devbar-track.auto-scroll:hover { animation-play-state: paused; }
+  @keyframes devbar-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .devbar-track.auto-scroll { animation: none; }
+    .devbar-viewport { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+  .dev-game-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 6px 11px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.12s ease;
+  }
+  .dev-game-link:hover { background: rgba(255,255,255,0.18); }
+</style>
+</head>
+<body>
+<div class="devbar" id="devbar">
+  <div class="devbar-inner">
+    <div class="devbar-viewport" id="devbarViewport">
+      <div class="devbar-track" id="devbarTrack">
+        <span class="devbar-label">스트리머 배경시장 · BY 오목지면시그</span>
+        <a class="dev-game-link" href="https://www.sooplive.com/station/skftodwocks2" target="_blank" rel="noopener noreferrer">방송국</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/soop-stock-market/index.html" target="_blank" rel="noopener noreferrer">스트리머 주식시장</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/dont-click-ads/" target="_blank" rel="noopener noreferrer">절대 광고를 클릭하지 마</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/midnight-mart-run/" target="_blank" rel="noopener noreferrer">미트나잇 마트런</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/StreamBet-Market/" target="_blank" rel="noopener noreferrer">스트리머 배팅시장</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="warmOverlay"></div>
+  <div id="vignette"></div>
+
+  <div id="sidePanel">
+    <div id="panelHandle" title="드래그해서 패널 위치 이동"><div class="panel-grip"></div></div>
+
+    <div class="auth-row">
+      <span id="authStatus">계정 확인 중...</span>
+      <button id="authBtn" type="button" disabled>Google 로그인</button>
+    </div>
+
+    <div class="auth-row">
+      <span id="timeStatus">낮</span>
+      <button id="timeToggleBtn" type="button">🌙 밤으로 전환</button>
+    </div>
+
+    <p class="panel-hint">화면을 더블클릭하면 전체화면으로 전환·복귀돼요. 아래 갤러리에 게시된 프리셋을 적용하거나 OBS 브라우저 소스용 링크를 복사해 쓸 수 있어요. 새 프리셋 저장·공유·게시/수정/삭제는 관리자 계정만 가능해요.</p>
+
+    <div id="localPresetSection" style="display:none;">
+      <p class="panel-title">프리셋 (관리자 전용)</p>
+      <div class="preset-save-row">
+        <input type="text" id="presetNameInput" placeholder="프리셋 이름" maxlength="24">
+        <button id="presetSaveBtn" type="button">저장</button>
+      </div>
+      <button id="addSceneLinkBtn" type="button" style="display:none; width:100%; margin-bottom:10px; padding:6px 0;" class="preset-btn">🔗 다른 배경 페이지 링크 추가 (관리자)</button>
+      <div id="presetList"></div>
+
+      <div class="panel-divider"></div>
+    </div>
+
+    <p class="panel-title">갤러리 (모두 공개)</p>
+    <div id="galleryList" class="preset-empty">불러오는 중...</div>
+  </div>
+
+  <div id="loading">불러오는 중...</div>
+</div>
+
+<script type="module">
+  // Firebase RTDB - 공개 프리셋 갤러리용. 모듈 스크립트라 아래 일반 스크립트보다 실행이 늦어질 수 있어서
+  // window.__firebaseGallery 준비되면 'firebase-gallery-ready' 이벤트로 알림
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js";
+  import {
+    getAuth, GoogleAuthProvider, signInAnonymously, signInWithPopup, signInWithCredential,
+    linkWithPopup, signOut, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZcjQPHphENs-Bb7IfdL2qTtOMhJrRP54",
+    authDomain: "soop-stock-market.firebaseapp.com",
+    databaseURL: "https://soop-stock-market-default-rtdb.firebaseio.com",
+    projectId: "soop-stock-market",
+    storageBucket: "soop-stock-market.firebasestorage.app",
+    messagingSenderId: "997788925900",
+    appId: "1:997788925900:web:b58db2970489bf18a3a769"
+  };
+
+  // UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐 - 실제 권한은 항상 서버
+  // (functions/index.js의 requireAdmin, request.auth.token.email 기준)가 검증한다.
+  const ADMIN_EMAIL = 'skftodwocks2@gmail.com';
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const galleryRef = ref(db, 'presetGallery');
+  const functions = getFunctions(app, 'us-central1');
+  const publishPresetFn = httpsCallable(functions, 'publishPreset');
+  const updatePresetFn = httpsCallable(functions, 'updatePreset');
+  const deletePresetFn = httpsCallable(functions, 'deletePreset');
+  const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
+  const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
+  const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+  const auth = getAuth(app);
+
+  window.__firebaseGallery = {
+    publish: function (name, config) {
+      return publishPresetFn({ name: name, config: config });
+    },
+    update: function (id, name, config) {
+      return updatePresetFn({ id: id, name: name, config: config });
+    },
+    remove: function (id) {
+      return deletePresetFn({ id: id });
+    },
+    subscribe: function (callback, onError) {
+      onValue(galleryRef, function (snapshot) {
+        callback(snapshot.val() || {});
+      }, function (err) {
+        console.error('presetGallery 읽기 실패:', err);
+        if (onError) onError(err);
+      });
+    }
+  };
+  window.dispatchEvent(new Event('firebase-gallery-ready'));
+
+  // 프리셋 소유권(uid) 확인용 로그인. 로그인 안 해도 익명 계정으로 자동 전환돼 uid는 항상
+  // 존재하며(기기에 영속), 이 uid로 게시한 프리셋의 소유를 서버(Cloud Functions)가 검증한다.
+  // Google 로그인은 실계정 전환일 뿐 -- 클라이언트가 보낸 uid는 서버가 절대 신뢰하지 않고
+  // 항상 request.auth.uid에서만 가져온다 (functions/index.js의 requireAuth 참고).
+  let currentUser = null;
+
+  window.__firebaseAuth = {
+    getUser: function () { return currentUser; },
+    isRealAccount: function () { return !!(currentUser && !currentUser.isAnonymous); },
+    isAdmin: function () { return !!(currentUser && !currentUser.isAnonymous && currentUser.email === ADMIN_EMAIL); },
+    signIn: function () {
+      const provider = new GoogleAuthProvider();
+
+      function handleFail(err) {
+        // 팝업을 스스로 닫거나 중복 요청을 취소한 경우는 실패가 아니라 조용히 무시
+        if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+        console.error('Google 로그인 실패:', err);
+        window.alert('Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+
+      // 링크 실패로 기존 계정으로 전환되면 uid가 바뀌므로, 그 전에 uid를 기억해뒀다가
+      // 실패 시 관리자 확인용 로그에 "어느 익명 uid였는지" 단서로 남긴다.
+      const oldUidBeforeSwitch = currentUser ? currentUser.uid : null;
+
+      // ticket: 링크가 실패해 기존 계정으로 전환하게 될 경우, 그 기존 계정으로
+      // 익명 uid가 게시한 프리셋 소유권을 옮기는 데 쓸 1회용 티켓 (null이면 이전 생략)
+      function linkOrSwitch(ticket) {
+        return linkWithPopup(currentUser, provider).catch(function (err) {
+          if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+          // 이미 다른 세션에서 같은 Google 계정으로 가입한 적이 있으면 연결이 거부됨
+          // (그 Google 계정은 이미 다른 uid를 갖고 있으므로) - 이 경우 그 기존 계정으로 전환한다.
+          if (err && err.code === 'auth/credential-already-in-use') {
+            const cred = GoogleAuthProvider.credentialFromError(err);
+            if (cred) {
+              return signInWithCredential(auth, cred).then(function () {
+                if (!ticket) {
+                  // 티켓 발급 자체가 실패해서 자동 이전을 시도할 수조차 없었던 경우 -
+                  // 관리자가 나중에 수동으로 확인할 수 있도록 로그만이라도 남긴다
+                  // (oldUidHint는 서버가 검증한 값이 아니라 참고용 단서일 뿐).
+                  return reportMergeFailureFn({ oldUidHint: oldUidBeforeSwitch, reason: 'no-ticket' }).catch(function (reportErr) {
+                    console.error('실패 로그 기록도 실패함:', reportErr);
+                  });
+                }
+                // 방금 전환한 새 uid로 인증된 상태에서 티켓을 제시해 소유권 이전을 청구
+                return claimMergeFn({ ticket: ticket }).catch(function (claimErr) {
+                  console.error('프리셋 소유권 이전 실패 (서버에 실패 로그가 남았을 수 있음):', claimErr);
+                });
+              }).catch(handleFail);
+            }
+          }
+          handleFail(err);
+        });
+      }
+
+      // 익명 상태면 signInWithPopup(완전히 새 uid로 전환) 대신 linkWithPopup으로
+      // 익명 계정을 Google 계정으로 "업그레이드"한다 - uid가 그대로 유지되므로
+      // 익명 상태에서 게시한 프리셋의 ownerUid도 로그인 후 계속 내 소유로 인식된다.
+      // 다만 그 Google 계정이 이미 다른 uid로 가입돼 있으면 link가 실패하고 그 기존
+      // 계정으로 전환되는데(uid가 바뀜), 이 경우를 대비해 지금(=서버가 이 익명 uid를
+      // 검증할 수 있는 마지막 시점) 미리 병합 티켓을 발급받아 둔다.
+      if (currentUser && currentUser.isAnonymous) {
+        return requestMergeTicketFn().then(function (res) {
+          return linkOrSwitch(res.data && res.data.ticket);
+        }).catch(function (err) {
+          console.error('병합 티켓 발급 실패, 티켓 없이 로그인 진행:', err);
+          return linkOrSwitch(null);
+        });
+      }
+
+      return signInWithPopup(auth, provider).catch(handleFail);
+    },
+    signOut: function () { return signOut(auth); }
+  };
+
+  onAuthStateChanged(auth, function (user) {
+    currentUser = user;
+    window.dispatchEvent(new CustomEvent('firebase-auth-changed', {
+      detail: {
+        user: user,
+        isRealAccount: !!(user && !user.isAnonymous),
+        isAdmin: !!(user && !user.isAnonymous && user.email === ADMIN_EMAIL)
+      }
+    }));
+    if (!user) {
+      signInAnonymously(auth).catch(function (err) { console.error('익명 로그인 실패:', err); });
+    }
+  });
+
+  // Ctrl+Enter 단축키로 어디서든 Google 로그인 팝업 (익명 상태에서만 동작)
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey && e.key === 'Enter' && !(currentUser && !currentUser.isAnonymous)) {
+      e.preventDefault();
+      window.__firebaseAuth.signIn();
+    }
+  });
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/BokehShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/BokehPass.js"></script>
+<script>
+(function () {
+  // ------------------------------------------------------------
+  // 기본 설정
+  // ------------------------------------------------------------
+  const ROOM_W = 8;   // 가로
+  const ROOM_H = 3.1; // 층고
+  const ROOM_D = 10;  // 세로(깊이)
+
+  // 방송 송출용 고정 사양 (해상도/비율/화각/구도를 전부 고정)
+  const FIXED_ASPECT = 16 / 9;
+  const FIXED_FOV = 50; // 스마트폰 기본 카메라에 가까운 화각으로 왜곡을 줄임
+
+  const canvas = document.getElementById('scene');
+  const vignetteEl = document.getElementById('vignette');
+  const warmOverlayEl = document.getElementById('warmOverlay');
+  const loadingEl = document.getElementById('loading');
+  const sidePanel = document.getElementById('sidePanel');
+  const panelHandle = document.getElementById('panelHandle');
+
+  // ------------------------------------------------------------
+  // 씬 / 카메라 / 렌더러
+  // ------------------------------------------------------------
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d0c0b);
+
+  const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 100);
+  // 방 코너가 한눈에 들어오는 3/4 구도로 고정 (걸레받이·크라운 몰딩·바닥이 함께 보이도록)
+  camera.position.set(0.2, 1.5, 4.2);
+  camera.lookAt(-3.2, 0.9, -4.6);
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // 피사계 심도(DoF) 포스트프로세싱 - 흐림 세기가 0일 땐 그냥 일반 렌더링으로 우회해서 비용 없음
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  const bokehPass = new THREE.BokehPass(scene, camera, {
+    focus: 4.0,
+    aperture: 0,
+    maxblur: 0,
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  composer.addPass(bokehPass);
+
+  // EffectComposer의 중간 렌더 타겟은 기본적으로 sRGB 인코딩이 빠져있어서
+  // 심도 on/off에 따라 색감이 달라 보이는 문제가 있었음 - 직접 인코딩을 맞춰서 일반 렌더링과 색이 일치하게 함
+  composer.renderTarget1.texture.encoding = THREE.sRGBEncoding;
+  composer.renderTarget2.texture.encoding = THREE.sRGBEncoding;
+
+  // ------------------------------------------------------------
+  // 색상 보정 유틸 (플랭크/노이즈 텍스처용)
+  // ------------------------------------------------------------
+  function shadeColor(hex, percent) {
+    const f = parseInt(hex.slice(1), 16);
+    const t = percent < 0 ? 0 : 255;
+    const p = Math.abs(percent) / 100;
+    const R = f >> 16, G = (f >> 8) & 0x00FF, B = f & 0x0000FF;
+    return '#' + (
+      0x1000000 +
+      (Math.round((t - R) * p) + R) * 0x10000 +
+      (Math.round((t - G) * p) + G) * 0x100 +
+      (Math.round((t - B) * p) + B)
+    ).toString(16).slice(1);
+  }
+
+  function hexStr(n) { return '#' + n.toString(16).padStart(6, '0'); }
+
+  // 원목 바닥 텍스처 (플랭크 패턴)
+  function createFloorTexture(base) {
+    base = base || '#a9784c';
+    const size = 512;
+    const cvs = document.createElement('canvas');
+    cvs.width = size; cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, size, size);
+
+    const planks = 8;
+    const plankW = size / planks;
+    for (let i = 0; i < planks; i++) {
+      const shade = (Math.random() * 18 - 9);
+      ctx.fillStyle = shadeColor(base, shade);
+      ctx.fillRect(i * plankW, 0, plankW - 2, size);
+    }
+    ctx.strokeStyle = 'rgba(40, 24, 10, 0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * size;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + (Math.random() * 8 - 4), size);
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(ROOM_W / 2.2, ROOM_D / 2.2);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  }
+
+  // 은은한 노이즈가 섞인 단색 텍스처 (벽/천장용 - 완전 평면적인 느낌 방지)
+  function createNoiseTexture(baseHex, variation) {
+    const size = 256;
+    const cvs = document.createElement('canvas');
+    cvs.width = size; cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, size, size);
+    const img = ctx.getImageData(0, 0, size, size);
+    const data = img.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (Math.random() - 0.5) * variation;
+      data[i] += n; data[i + 1] += n; data[i + 2] += n;
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 2);
+    return tex;
+  }
+
+  // 가구용 텍스처 - 색은 그대로 두고(material.color) 흰색 바탕에 은은한 무늬만 넣어서
+  // map*color로 곱해지게 하는 방식. 실제 색을 몰라도 아무 gltf 재질 위에 얹을 수 있다.
+  function createGrainTexture() {
+    const size = 256;
+    const cvs = document.createElement('canvas');
+    cvs.width = size; cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 160; i++) {
+      const y = Math.random() * size;
+      ctx.strokeStyle = 'rgba(0,0,0,' + (0.1 + Math.random() * 0.28) + ')';
+      ctx.lineWidth = 1 + Math.random();
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + (Math.random() * 10 - 5));
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2.5, 2.5);
+    return tex;
+  }
+
+  function createWeaveTexture() {
+    const size = 128;
+    const cvs = document.createElement('canvas');
+    cvs.width = size; cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    const img = ctx.getImageData(0, 0, size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        const weave = (Math.sin(x * 1.6) + Math.sin(y * 1.6)) * 16;
+        const n = weave + (Math.random() - 0.5) * 20;
+        data[idx] += n; data[idx + 1] += n; data[idx + 2] += n;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(5, 5);
+    return tex;
+  }
+
+  const furnitureGrainTex = createGrainTexture();   // 나무(책장/테이블/침대 프레임 등)
+  const furnitureWeaveTex = createWeaveTexture();   // 천(소파/러그/커튼)
+
+  // ------------------------------------------------------------
+  // 방(빈 공간) 구성
+  // ------------------------------------------------------------
+  const ceilingTex = createNoiseTexture('#fbf8f3', 4);
+
+  // 벽 재질 (Poly Haven CC0 실사 PBR 텍스처)
+  // 실외 스캔 재질 느낌을 죽이고 실내 도장벽처럼 보이도록 범프/거칠기를 완화하고 밝은 톤으로 틴트함
+  const texLoader = new THREE.TextureLoader();
+  function loadWallMap(path, isColorMap) {
+    const tex = texLoader.load(path);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1.4, 0.6); // 반복 횟수를 줄여 얼룩이 타일처럼 반복되어 보이지 않게 함
+    if (isColorMap) tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  }
+
+  const WALL_STYLES = [
+    { id: 'beige', label: '베이지 플라스터', path: 'textures/wall/beige/', color: 0xcaa878 },
+    { id: 'wood', label: '우드 플로어', path: 'textures/wall/wood/', color: 0xa9784c },
+    { id: 'bistretch', label: '바이 스트레치 (화이트)', path: 'textures/wall/bistretch/', color: 0xf2efe6 }
+  ];
+  const MOLDING_STYLES = [
+    { id: 'white', label: '화이트', color: 0xf5f1e6 },
+    { id: 'natural', label: '내추럴 우드', color: 0xa9784c },
+    { id: 'dark', label: '다크', color: 0x2b2320 }
+  ];
+  const FLOOR_STYLES = [
+    { id: 'oak', label: '라이트 오크', color: 0xa9784c },
+    { id: 'walnut', label: '다크 월넛', color: 0x140c07 },
+    { id: 'whitewash', label: '화이트워시', color: 0xcfc7b8 }
+  ];
+
+  const initialWall = WALL_STYLES[0];
+  const wallMat = new THREE.MeshStandardMaterial({
+    map: loadWallMap(initialWall.path + 'diffuse.jpg', true),
+    normalMap: loadWallMap(initialWall.path + 'normal.jpg', false),
+    normalScale: new THREE.Vector2(0.35, 0.35), // 요철감 완화 (콘크리트/스투코 느낌 방지)
+    aoMap: loadWallMap(initialWall.path + 'ao.jpg', false),
+    aoMapIntensity: 0.5,
+    color: 0xf2ede0, // 밝고 균일한 도장 느낌으로 틴트
+    roughness: 0.88,
+    metalness: 0.0,
+    side: THREE.BackSide
+  });
+  const ceilingMat = new THREE.MeshStandardMaterial({ map: ceilingTex, roughness: 0.95, metalness: 0.0, side: THREE.BackSide });
+  const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture(hexStr(FLOOR_STYLES[0].color)), roughness: 0.85, metalness: 0.0, side: THREE.BackSide });
+
+  // BoxGeometry 면 순서: +x, -x, +y, -y, +z, -z
+  const roomGeo = new THREE.BoxGeometry(ROOM_W, ROOM_H, ROOM_D);
+  roomGeo.setAttribute('uv2', new THREE.BufferAttribute(roomGeo.attributes.uv.array, 2)); // aoMap 사용을 위해 필요
+  const roomMaterials = [wallMat, wallMat, ceilingMat, floorMat, wallMat, wallMat];
+  const room = new THREE.Mesh(roomGeo, roomMaterials);
+  room.position.y = ROOM_H / 2;
+  room.receiveShadow = true;
+  scene.add(room);
+
+  // ------------------------------------------------------------
+  // 걸레받이 (벽-바닥 경계에 몰딩을 둘러 "텍스처 입힌 상자"가 아니라 방처럼 보이게 함)
+  // ------------------------------------------------------------
+  const BASE_H = 0.09;
+  const BASE_D = 0.02;
+  const baseboardMat = new THREE.MeshStandardMaterial({ color: 0xf5f1e6, roughness: 0.55, metalness: 0.0 });
+
+  function addBaseboard(w, h, d, x, z) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mesh = new THREE.Mesh(geo, baseboardMat);
+    mesh.position.set(x, BASE_H / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+
+  addBaseboard(ROOM_W, BASE_H, BASE_D, 0, ROOM_D / 2 - BASE_D / 2);   // 앞쪽 벽
+  addBaseboard(ROOM_W, BASE_H, BASE_D, 0, -ROOM_D / 2 + BASE_D / 2);  // 뒤쪽 벽
+  addBaseboard(BASE_D, BASE_H, ROOM_D, -ROOM_W / 2 + BASE_D / 2, 0);  // 왼쪽 벽
+  addBaseboard(BASE_D, BASE_H, ROOM_D, ROOM_W / 2 - BASE_D / 2, 0);   // 오른쪽 벽
+
+  // ------------------------------------------------------------
+  // 크라운 몰딩 (천장-벽 경계, 걸레받이와 같은 논리를 위쪽에 적용)
+  // ------------------------------------------------------------
+  const CROWN_H = 0.07;
+  const CROWN_D = 0.02;
+  const crownY = ROOM_H - CROWN_H / 2;
+
+  function addCrownMolding(w, h, d, x, z) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mesh = new THREE.Mesh(geo, baseboardMat);
+    mesh.position.set(x, crownY, z);
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+
+  addCrownMolding(ROOM_W, CROWN_H, CROWN_D, 0, ROOM_D / 2 - CROWN_D / 2);   // 앞쪽 벽
+  addCrownMolding(ROOM_W, CROWN_H, CROWN_D, 0, -ROOM_D / 2 + CROWN_D / 2);  // 뒤쪽 벽
+  addCrownMolding(CROWN_D, CROWN_H, ROOM_D, -ROOM_W / 2 + CROWN_D / 2, 0);  // 왼쪽 벽
+  addCrownMolding(CROWN_D, CROWN_H, ROOM_D, ROOM_W / 2 - CROWN_D / 2, 0);   // 오른쪽 벽
+
+  // ------------------------------------------------------------
+  // 창문 - 왼쪽 벽(박스의 -x면)에 구멍을 뚫고, 그 자리에 구멍 뚫린 벽 패널을 따로 만들어
+  // 끼운다. 박스의 -x면 자체는 숨기고(roomMaterials[1]), 패널은 같은 wallMat을 그대로 써서
+  // 벽지가 바뀌어도 창문 주변 벽면이 항상 나머지 벽과 동일하게 갱신된다.
+  // ------------------------------------------------------------
+  const WIN_Z_MIN = -2.6, WIN_Z_MAX = -1.0;
+  const WIN_Y_MIN = 1.15, WIN_Y_MAX = 2.45;
+  const WIN_X = -ROOM_W / 2;
+  const WIN_W = WIN_Z_MAX - WIN_Z_MIN;
+  const WIN_H = WIN_Y_MAX - WIN_Y_MIN;
+  const WIN_FRAME_T = 0.08;
+
+  roomMaterials[1] = new THREE.MeshBasicMaterial({ visible: false });
+
+  const windowWallShape = new THREE.Shape();
+  windowWallShape.moveTo(-ROOM_D / 2, 0);
+  windowWallShape.lineTo(ROOM_D / 2, 0);
+  windowWallShape.lineTo(ROOM_D / 2, ROOM_H);
+  windowWallShape.lineTo(-ROOM_D / 2, ROOM_H);
+  windowWallShape.closePath();
+  const windowHole = new THREE.Path();
+  windowHole.moveTo(WIN_Z_MIN, WIN_Y_MIN);
+  windowHole.lineTo(WIN_Z_MAX, WIN_Y_MIN);
+  windowHole.lineTo(WIN_Z_MAX, WIN_Y_MAX);
+  windowHole.lineTo(WIN_Z_MIN, WIN_Y_MAX);
+  windowHole.closePath();
+  windowWallShape.holes.push(windowHole);
+  const windowWallGeo = new THREE.ShapeGeometry(windowWallShape);
+  windowWallGeo.rotateY(-Math.PI / 2); // Shape의 로컬(x=z, y=y) 평면을 벽의 실제 x=WIN_X 평면으로 회전
+  const windowWallPanel = new THREE.Mesh(windowWallGeo, wallMat);
+  windowWallPanel.position.x = WIN_X;
+  windowWallPanel.receiveShadow = true;
+  scene.add(windowWallPanel);
+
+  // 창틀 (사각 테두리 + 십자 살) - Poly Haven CC0 실사 텍스처(Oak Veneer 01)
+  function loadExteriorMap(path, isColorMap, repeatX, repeatY) {
+    const tex = texLoader.load(path);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    if (isColorMap) tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  }
+  const windowFrameMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.55,
+    map: loadExteriorMap('textures/window-frame/diffuse.jpg', true, 1, 3),
+    normalMap: loadExteriorMap('textures/window-frame/normal.jpg', false, 1, 3)
+  });
+  const windowFrameX = WIN_X + 0.03; // 벽면보다 살짝 방 안쪽으로 튀어나오게
+  function addWindowFrameBar(w, h, d, x, y, z) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), windowFrameMat);
+    bar.position.set(x, y, z);
+    bar.castShadow = true;
+    bar.receiveShadow = true;
+    scene.add(bar);
+  }
+  const winCenterY = (WIN_Y_MIN + WIN_Y_MAX) / 2;
+  const winCenterZ = (WIN_Z_MIN + WIN_Z_MAX) / 2;
+  addWindowFrameBar(WIN_FRAME_T, WIN_H + WIN_FRAME_T * 2, WIN_FRAME_T, windowFrameX, winCenterY, WIN_Z_MIN - WIN_FRAME_T / 2);
+  addWindowFrameBar(WIN_FRAME_T, WIN_H + WIN_FRAME_T * 2, WIN_FRAME_T, windowFrameX, winCenterY, WIN_Z_MAX + WIN_FRAME_T / 2);
+  addWindowFrameBar(WIN_FRAME_T, WIN_FRAME_T, WIN_W + WIN_FRAME_T * 2, windowFrameX, WIN_Y_MIN - WIN_FRAME_T / 2, winCenterZ);
+  addWindowFrameBar(WIN_FRAME_T, WIN_FRAME_T, WIN_W + WIN_FRAME_T * 2, windowFrameX, WIN_Y_MAX + WIN_FRAME_T / 2, winCenterZ);
+  addWindowFrameBar(WIN_FRAME_T * 0.6, WIN_H, WIN_FRAME_T * 0.6, windowFrameX, winCenterY, winCenterZ);
+  addWindowFrameBar(WIN_FRAME_T * 0.6, WIN_FRAME_T * 0.6, WIN_W, windowFrameX, winCenterY, winCenterZ);
+
+  // 유리 (완전 투명이 아니라 은은하게 색이 비치는 정도)
+  const windowGlassMat = new THREE.MeshStandardMaterial({
+    color: 0xbfe0e8, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide
+  });
+  const windowGlass = new THREE.Mesh(new THREE.PlaneGeometry(WIN_W - 0.02, WIN_H - 0.02), windowGlassMat);
+  windowGlass.rotation.y = Math.PI / 2;
+  windowGlass.position.set(WIN_X + 0.02, winCenterY, winCenterZ);
+  scene.add(windowGlass);
+
+  // 창문 너머 바깥 풍경 - 낮/밤 캔버스 텍스처 두 장을 겹쳐두고 visible로만 전환
+  function createSkyTexture(mode) {
+    const w = 512, h = 384;
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    const ctx = cvs.getContext('2d');
+    if (mode === 'night') {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#0a1330');
+      g.addColorStop(1, '#1c2a4a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 90; i++) {
+        const sx = Math.random() * w, sy = Math.random() * h * 0.7, sr = Math.random() * 1.4 + 0.3;
+        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#fdf6e3';
+      ctx.beginPath(); ctx.arc(w * 0.75, h * 0.22, 28, 0, Math.PI * 2); ctx.fill();
+      let bx = 0;
+      while (bx < w) {
+        const bw = 30 + Math.random() * 50, bh = 60 + Math.random() * 140;
+        ctx.fillStyle = '#0d1224';
+        ctx.fillRect(bx, h - bh, bw, bh);
+        ctx.fillStyle = 'rgba(255, 214, 140, 0.65)';
+        for (let wy = h - bh + 10; wy < h - 10; wy += 16) {
+          for (let wx = bx + 6; wx < bx + bw - 6; wx += 12) {
+            if (Math.random() < 0.35) ctx.fillRect(wx, wy, 5, 7);
+          }
+        }
+        bx += bw + 6;
+      }
+    } else {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#4fa3e3');
+      g.addColorStop(1, '#bfe6ea');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(255,244,214,0.9)';
+      ctx.beginPath(); ctx.arc(w * 0.78, h * 0.22, 34, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      function cloud(cx, cy, s) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, s, 0, Math.PI * 2);
+        ctx.arc(cx + s * 0.9, cy + s * 0.15, s * 0.75, 0, Math.PI * 2);
+        ctx.arc(cx - s * 0.9, cy + s * 0.15, s * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      cloud(w * 0.22, h * 0.28, 22);
+      cloud(w * 0.5, h * 0.18, 16);
+      ctx.fillStyle = '#6f9e6a';
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, h * 0.78);
+      for (let x2 = 0; x2 <= w; x2 += 24) {
+        ctx.lineTo(x2, h * 0.78 - Math.sin(x2 * 0.05) * 10 - Math.random() * 6);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  // 하늘을 창문에서 더 멀리 뒤로 뺄수록, 창문 시야각을 꽉 채우려면 판 크기도 그만큼 키워야 한다
+  // (카메라가 창문을 정면이 아니라 비스듬히 보고 있어서, 넉넉하게 키우지 않으면 모서리에 배경이
+  // 안 채워진 빈틈이 생긴다)
+  const outdoorBackdropW = (WIN_W + 1.2) * 2.6, outdoorBackdropH = (WIN_H + 1.0) * 2.6;
+  const outdoorDayMat = new THREE.MeshBasicMaterial({ map: createSkyTexture('day'), side: THREE.DoubleSide });
+  const outdoorNightMat = new THREE.MeshBasicMaterial({ map: createSkyTexture('night'), side: THREE.DoubleSide, visible: false });
+  let outdoorDayMesh = new THREE.Mesh(new THREE.PlaneGeometry(outdoorBackdropW, outdoorBackdropH), outdoorDayMat);
+  outdoorDayMesh.rotation.y = Math.PI / 2;
+  outdoorDayMesh.position.set(WIN_X - 1.0, winCenterY, winCenterZ);
+  scene.add(outdoorDayMesh);
+  let outdoorNightMesh = new THREE.Mesh(new THREE.PlaneGeometry(outdoorBackdropW, outdoorBackdropH), outdoorNightMat);
+  outdoorNightMesh.rotation.y = Math.PI / 2;
+  outdoorNightMesh.position.copy(outdoorDayMesh.position);
+  scene.add(outdoorNightMesh);
+
+  // 담벼락 - 하늘 배경보다 창문에 더 가깝게 세워서 앞을 가린다. 바닥(y=0)부터 세우는데 높이를
+  // 창문 높이의 1/3로만 잡아서, 창문으로 보이는 부분은 아래 1/3만 담이고 위 2/3는 하늘이 보인다.
+  const FENCE_TOP_Y = WIN_Y_MIN + WIN_H / 3;
+  const fenceMat = new THREE.MeshStandardMaterial({
+    color: 0xdedede, roughness: 0.85,
+    map: loadExteriorMap('textures/exterior/wall/diffuse.jpg', true, 3, 0.6),
+    normalMap: loadExteriorMap('textures/exterior/wall/normal.jpg', false, 3, 0.6),
+    aoMap: loadExteriorMap('textures/exterior/wall/ao.jpg', false, 3, 0.6)
+  });
+  const fenceGeo = new THREE.PlaneGeometry(outdoorBackdropW, FENCE_TOP_Y);
+  fenceGeo.setAttribute('uv2', new THREE.BufferAttribute(fenceGeo.attributes.uv.array, 2)); // aoMap 사용을 위해 필요
+  const fenceMesh = new THREE.Mesh(fenceGeo, fenceMat);
+  fenceMesh.rotation.y = Math.PI / 2;
+  fenceMesh.position.set(WIN_X - 0.7, FENCE_TOP_Y / 2, winCenterZ);
+  scene.add(fenceMesh);
+
+  // 담이 창문에 딱 붙어 보이지 않도록, 창문 안쪽 리빌(창틀 두께)이 담 위쪽에 그림자를 드리우는
+  // 것처럼 반투명 그라디언트를 담벼락보다 살짝 카메라 쪽(안쪽)에 겹쳐서 "떨어져 있는" 느낌을 준다
+  function createShadowGradientTexture() {
+    const w = 64, h = 256;
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    const ctx = cvs.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(0,0,0,0.6)');
+    g.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+    g.addColorStop(0.65, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    return new THREE.CanvasTexture(cvs);
+  }
+  const fenceShadowMat = new THREE.MeshBasicMaterial({
+    map: createShadowGradientTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false
+  });
+  const fenceShadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(outdoorBackdropW, FENCE_TOP_Y), fenceShadowMat);
+  fenceShadowMesh.rotation.y = Math.PI / 2;
+  fenceShadowMesh.position.set(WIN_X - 0.69, FENCE_TOP_Y / 2, winCenterZ);
+  scene.add(fenceShadowMesh);
+
+  // 커튼 (창문 좌우로, 천장 몰딩 바로 아래부터 바닥까지 늘어뜨린 패널) - Poly Haven CC0 실사 텍스처(Cotton Jersey)
+  // 실사 텍스처 원본 색이 벽(베이지)과 거의 같아서 그대로 두면 커튼이 벽에 묻혀 안 보임 -
+  // 짜임 디테일은 그대로 살리되 색만 살짝 톤을 줘서 벽과 구분되게 함
+  const curtainMat = new THREE.MeshStandardMaterial({
+    color: 0xd9c39e, roughness: 0.95, side: THREE.DoubleSide,
+    map: loadExteriorMap('textures/curtain/diffuse.jpg', true, 1, 3),
+    normalMap: loadExteriorMap('textures/curtain/normal.jpg', false, 1, 3)
+  });
+  const CURTAIN_W = 0.55;
+  const CURTAIN_TOP = ROOM_H - CROWN_H - 0.06;
+  const CURTAIN_BOTTOM = BASE_H + 0.02;
+  const CURTAIN_H = CURTAIN_TOP - CURTAIN_BOTTOM;
+  function addCurtain(zPos) {
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(CURTAIN_W, CURTAIN_H), curtainMat);
+    c.rotation.y = Math.PI / 2;
+    c.position.set(WIN_X + 0.06, (CURTAIN_TOP + CURTAIN_BOTTOM) / 2, zPos);
+    c.castShadow = true;
+    c.receiveShadow = true;
+    scene.add(c);
+  }
+  addCurtain(WIN_Z_MIN - CURTAIN_W / 2 - 0.05);
+  addCurtain(WIN_Z_MAX + CURTAIN_W / 2 + 0.05);
+
+  // ------------------------------------------------------------
+  // 액자 - 뒤쪽 벽(-z면)에 간단한 그림 액자 하나
+  // ------------------------------------------------------------
+  function createArtTexture() {
+    const w = 384, h = 512;
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    const ctx = cvs.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#f3e3c9');
+    g.addColorStop(0.55, '#e8b98a');
+    g.addColorStop(1, '#c97b52');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath(); ctx.arc(w * 0.5, h * 0.38, 60, 0, Math.PI * 2); ctx.fill();
+    const hillColors = ['#8a5a3c', '#6e4530', '#4a2e1f'];
+    hillColors.forEach(function (color, i) {
+      ctx.fillStyle = color;
+      const base = h * (0.62 + i * 0.13);
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, base);
+      for (let x = 0; x <= w; x += 32) {
+        ctx.lineTo(x, base - Math.sin((x / w) * Math.PI * 2 + i) * 22);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+    });
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  const ART_W = 0.9, ART_H = 1.2;
+  const artX = 1.4, artY = 1.75, artZ = -ROOM_D / 2;
+  const artFrameMat = new THREE.MeshStandardMaterial({ color: 0x2b2320, roughness: 0.6, map: furnitureGrainTex });
+  const ART_BORDER = 0.06;
+  function addArtFrameBar(w, h, d, x, y, z) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), artFrameMat);
+    bar.position.set(x, y, z);
+    bar.castShadow = true;
+    bar.receiveShadow = true;
+    scene.add(bar);
+  }
+  const artFrameZ = artZ + 0.03;
+  addArtFrameBar(ART_W + ART_BORDER * 2, ART_BORDER, ART_BORDER, artX, artY + ART_H / 2 + ART_BORDER / 2, artFrameZ);
+  addArtFrameBar(ART_W + ART_BORDER * 2, ART_BORDER, ART_BORDER, artX, artY - ART_H / 2 - ART_BORDER / 2, artFrameZ);
+  addArtFrameBar(ART_BORDER, ART_H, ART_BORDER, artX - ART_W / 2 - ART_BORDER / 2, artY, artFrameZ);
+  addArtFrameBar(ART_BORDER, ART_H, ART_BORDER, artX + ART_W / 2 + ART_BORDER / 2, artY, artFrameZ);
+  const artMat = new THREE.MeshStandardMaterial({ map: createArtTexture(), roughness: 0.9 });
+  const artMesh = new THREE.Mesh(new THREE.PlaneGeometry(ART_W, ART_H), artMat);
+  artMesh.position.set(artX, artY, artZ + 0.035);
+  scene.add(artMesh);
+
+  // ------------------------------------------------------------
+  // 조명
+  // ------------------------------------------------------------
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x6b6152, 0.95);
+  scene.add(hemi);
+
+  const sun = new THREE.DirectionalLight(0xfff4e0, 1.25);
+  sun.position.set(ROOM_W / 2 - 1, ROOM_H - 0.2, -ROOM_D / 2 + 1.5);
+  sun.target.position.set(0, 0, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -ROOM_W;
+  sun.shadow.camera.right = ROOM_W;
+  sun.shadow.camera.top = ROOM_D;
+  sun.shadow.camera.bottom = -ROOM_D;
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = 30;
+  sun.shadow.bias = -0.0015;
+  sun.shadow.radius = 4;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  const warmA = new THREE.PointLight(0xffdcae, 0.3, 9);
+  warmA.position.set(-ROOM_W / 3, ROOM_H - 0.4, ROOM_D / 4);
+  scene.add(warmA);
+
+  const warmB = new THREE.PointLight(0xffdcae, 0.3, 9);
+  warmB.position.set(ROOM_W / 3, ROOM_H - 0.4, -ROOM_D / 4);
+  scene.add(warmB);
+
+  // ------------------------------------------------------------
+  // 낮/밤 전환 - 낮은 위 조명 그대로, 밤은 가구 "조명(램프)" 위치에서만 밝고
+  // 멀어질수록 어두워지는 point light 하나로만 방을 비춘다 (천장/해 조명은 꺼짐)
+  // ------------------------------------------------------------
+  const DAY_INTENSITY = { hemi: hemi.intensity, sun: sun.intensity, warmA: warmA.intensity, warmB: warmB.intensity };
+
+  const TIME_KEY = 'interior3dViewer.timeOfDay';
+  let timeOfDay = localStorage.getItem(TIME_KEY) === 'night' ? 'night' : 'day';
+
+  // 은은한 달빛 - 밤에도 방이 완전한 암흑이 되지 않도록 아주 약하게만
+  const moonHemi = new THREE.HemisphereLight(0x263a5c, 0x05050a, 0);
+  scene.add(moonHemi);
+
+  // 가구 "조명(램프)" 위치를 따라다니는 point light - 밤에만 켜지고, distance/decay로
+  // 램프에서 멀어질수록 확실히 어두워지게 한다. 램프가 배치돼 있지 않으면 계속 꺼진 채로 둔다.
+  const LAMP_LIGHT_DISTANCE = 4.2;
+  const LAMP_LIGHT_INTENSITY = 1.4;
+  const lampNightLight = new THREE.PointLight(0xffcf9e, 0, LAMP_LIGHT_DISTANCE, 2);
+  scene.add(lampNightLight);
+  let lampFixturePresent = false;
+
+  function refreshTimeOfDayLighting() {
+    const isNight = timeOfDay === 'night';
+    hemi.intensity = isNight ? 0 : DAY_INTENSITY.hemi;
+    sun.intensity = isNight ? 0 : DAY_INTENSITY.sun;
+    warmA.intensity = isNight ? 0 : DAY_INTENSITY.warmA;
+    warmB.intensity = isNight ? 0 : DAY_INTENSITY.warmB;
+    moonHemi.intensity = isNight ? 0.18 : 0;
+    lampNightLight.intensity = (isNight && lampFixturePresent) ? LAMP_LIGHT_INTENSITY : 0;
+    outdoorDayMesh.visible = !isNight;
+    outdoorNightMesh.visible = isNight;
+  }
+
+  function applyTimeOfDay(mode) {
+    timeOfDay = (mode === 'night') ? 'night' : 'day';
+    localStorage.setItem(TIME_KEY, timeOfDay);
+    refreshTimeOfDayLighting();
+  }
+
+  refreshTimeOfDayLighting();
+
+  // ------------------------------------------------------------
+  // 가구 (카테고리별 여러 스타일 - 우측 패널에서 선택, localStorage에 자동 저장)
+  // 러그는 프리미티브 유지, 책장/소파/조명/화분은 실제 glTF 모델(Kenney CC0)로 교체
+  // ------------------------------------------------------------
+
+  function buildRug(style) {
+    const g = new THREE.Group();
+    const thickness = 0.015; // 러그 두께감 (파일 높이) - 기존 대비 절반
+    const bevel = 0.012;    // 가장자리 라운딩 정도
+
+    let shape;
+    if (style.shape === 'round') {
+      shape = new THREE.Shape();
+      shape.absarc(0, 0, 1.15 - bevel, 0, Math.PI * 2, false);
+    } else {
+      const hw = 1.2 - bevel, hd = 0.85 - bevel, r = 0.12;
+      shape = new THREE.Shape();
+      shape.moveTo(-hw + r, -hd);
+      shape.lineTo(hw - r, -hd);
+      shape.quadraticCurveTo(hw, -hd, hw, -hd + r);
+      shape.lineTo(hw, hd - r);
+      shape.quadraticCurveTo(hw, hd, hw - r, hd);
+      shape.lineTo(-hw + r, hd);
+      shape.quadraticCurveTo(-hw, hd, -hw, hd - r);
+      shape.lineTo(-hw, -hd + r);
+      shape.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
+    }
+
+    // 윗면 가장자리만 둥글게 베벨 처리 (바닥에 닿는 아랫면은 안 보이므로 생략)
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: thickness,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize: bevel,
+      bevelSegments: 4,
+      curveSegments: 24
+    });
+    geo.rotateX(Math.PI / 2);
+
+    const mat = new THREE.MeshStandardMaterial({ color: style.color, roughness: 0.95, metalness: 0, map: furnitureWeaveTex });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = thickness + bevel;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    return g;
+  }
+
+  // Kenney "Furniture Kit" (CC0) glTF 모델 로더 + 캐시 (같은 모델 재선택 시 재다운로드 없이 clone)
+  const gltfLoader = new THREE.GLTFLoader();
+  const modelCache = {};
+  function loadFurnitureModel(url) {
+    if (!modelCache[url]) {
+      modelCache[url] = new Promise(function (resolve, reject) {
+        gltfLoader.load(url, function (gltf) { resolve(gltf.scene); }, undefined, reject);
+      });
+    }
+    return modelCache[url];
+  }
+
+  const FURNITURE = {
+    rug: {
+      label: '러그', build: buildRug,
+      styles: [
+        { id: 'ivory-round', color: 0xe8ded0, shape: 'round' },
+        { id: 'grey-rect', color: 0x9a9a92, shape: 'rect' },
+        { id: 'terracotta-rect', color: 0xb5603c, shape: 'rect' }
+      ],
+      position: [-1.2, 0, -1.0], rotationY: 0
+    },
+    shelf: {
+      label: '책장',
+      // Poly Haven CC0 실사 PBR 모델(Steel Frame Shelves 03)로 완전 교체
+      styles: [
+        { id: 'steel03', short: 'Steel Frame Shelves 03', model: 'models/furniture/steel_frame_shelves_03/steel_frame_shelves_03.gltf', scale: 0.72 }
+      ],
+      position: [-2.0, 0, -4.83], rotationY: 0
+    },
+    sofa: {
+      label: '소파',
+      // Poly Haven CC0 실사 PBR 모델(Sofa 03)로 완전 교체 - 자체 디퓨즈/노멀/러프니스
+      // 텍스처가 이미 있어서 furnitureWeaveTex는 자동으로 안 덧씌워짐(place()의 !m.map 가드)
+      styles: [
+        { id: 'sofa03', short: 'Sofa 03', model: 'models/furniture/sofa03/sofa_03.gltf', scale: 0.68 }
+      ],
+      position: [-3.65, 0, -0.6], rotationY: Math.PI / 2
+    },
+    lamp: {
+      label: '조명',
+      styles: [
+        { id: 'round', short: '라운드', model: 'models/furniture/lampRoundFloor.glb', scale: 1.6 },
+        { id: 'square', short: '사각', model: 'models/furniture/lampSquareFloor.glb', scale: 1.6 }
+      ],
+      position: [-3.6, 0, 0.9], rotationY: 0
+    },
+    plant: {
+      label: '화분',
+      styles: [
+        { id: 'small1', short: '몬스테라', model: 'models/furniture/plantSmall1.glb', scale: 3.5 },
+        { id: 'small3', short: '관엽', model: 'models/furniture/plantSmall3.glb', scale: 3.5 },
+        { id: 'potted', short: '화분목', model: 'models/furniture/pottedPlant.glb', scale: 1.3 }
+      ],
+      position: [-0.5, 0, -4.6], rotationY: 0
+    },
+    bed: {
+      label: '침대',
+      styles: [
+        { id: 'single', short: '싱글', model: 'models/furniture/bedSingle.glb', scale: 1.62 },
+        { id: 'double', short: '더블', model: 'models/furniture/bedDouble.glb', scale: 1.62 },
+        { id: 'bunk', short: '2층', model: 'models/furniture/bedBunk.glb', scale: 1.62 }
+      ],
+      position: [0.9, 0, -4.1], rotationY: 0
+    },
+    coffeeTable: {
+      label: '커피 테이블',
+      // Poly Haven CC0 실사 PBR 모델(Gothic Coffee Table)로 완전 교체
+      styles: [
+        { id: 'gothic', short: 'Gothic Coffee Table', model: 'models/furniture/gothic_coffee_table/gothic_coffee_table.gltf', scale: 0.68 }
+      ],
+      position: [-2.3, 0, -0.6], rotationY: Math.PI / 2
+    },
+    sideTable: {
+      label: '사이드 테이블',
+      styles: [
+        { id: 'basic', short: '베이직', model: 'models/furniture/sideTable.glb', scale: 1.35 },
+        { id: 'drawers', short: '서랍형', model: 'models/furniture/sideTableDrawers.glb', scale: 1.35 }
+      ],
+      position: [-3.3, 0, 1.3], rotationY: 0
+    }
+  };
+
+  const FURNITURE_KEY = 'interior3dViewer.furniture';
+  const furnitureGroup = new THREE.Group();
+  scene.add(furnitureGroup);
+
+  // 배치돼 있던 가구를 전부 비움 (패널의 가구 선택 UI를 없앤 것과 함께, 이제 프리셋을 통해서만 채워짐)
+  let furnitureState = {};
+  localStorage.removeItem(FURNITURE_KEY);
+
+  const FURNITURE_POS_KEY = 'interior3dViewer.furniturePositions';
+  let furniturePositions = {};
+  localStorage.removeItem(FURNITURE_POS_KEY);
+
+  const FURNITURE_ROT_KEY = 'interior3dViewer.furnitureRotations';
+  let furnitureRotations = {};
+  localStorage.removeItem(FURNITURE_ROT_KEY);
+
+  let furnitureBuildToken = 0;
+
+  // 카테고리별로 어떤 재질감(나무결/천짜임)을 입힐지 - 실제 색은 각 모델 고유값 그대로 두고 무늬만 덧입힌다
+  const WOOD_FURNITURE_CATS = { shelf: true, coffeeTable: true, sideTable: true, bed: true };
+  const FABRIC_FURNITURE_CATS = { sofa: true };
+
+  function rebuildFurniture() {
+    const token = ++furnitureBuildToken;
+    while (furnitureGroup.children.length) furnitureGroup.remove(furnitureGroup.children[0]);
+    // 램프 재배치 전에는 우선 꺼둔다 - 이번 리빌드에서 lamp 카테고리가 실제로 배치되면
+    // place()에서 다시 true로 켜고 위치를 갱신한다 (없으면 밤에도 계속 꺼진 채로 유지).
+    lampFixturePresent = false;
+    refreshTimeOfDayLighting();
+
+    Object.keys(FURNITURE).forEach(function (cat) {
+      const def = FURNITURE[cat];
+      const styleId = furnitureState[cat];
+      if (!styleId) return;
+      const style = def.styles.filter(function (s) { return s.id === styleId; })[0];
+      if (!style) return;
+
+      function place(obj) {
+        if (token !== furnitureBuildToken) return; // 그 사이 다른 선택으로 바뀌었으면 무시
+        const override = furniturePositions[cat];
+        const px = override ? override.x : def.position[0];
+        const pz = override ? override.z : def.position[2];
+        obj.position.set(px, def.position[1], pz);
+        const rotOverride = furnitureRotations[cat];
+        obj.rotation.y = (typeof rotOverride === 'number') ? rotOverride : (def.rotationY || 0);
+        obj.userData.cat = cat;
+        // 실제 모델(glTF)은 대부분 무늬 없는 단색 재질이라 밋밋해 보임 - 색은 그대로 두고
+        // (map은 material.color와 곱해지므로) 나무/천 종류에 맞는 은은한 무늬만 얹는다.
+        const furnitureTex = WOOD_FURNITURE_CATS[cat] ? furnitureGrainTex : (FABRIC_FURNITURE_CATS[cat] ? furnitureWeaveTex : null);
+        obj.traverse(function (n) {
+          if (!n.isMesh) return;
+          n.castShadow = true;
+          n.receiveShadow = true;
+          if (furnitureTex) {
+            const mats = Array.isArray(n.material) ? n.material : [n.material];
+            mats.forEach(function (m) {
+              if (m && !m.map) { m.map = furnitureTex; m.needsUpdate = true; }
+            });
+          }
+        });
+        furnitureGroup.add(obj);
+        if (cat === 'lamp') {
+          lampFixturePresent = true;
+          lampNightLight.position.set(px, 1.3, pz);
+          refreshTimeOfDayLighting();
+        }
+      }
+
+      if (style.model) {
+        loadFurnitureModel(style.model).then(function (template) {
+          const inner = template.clone(true);
+          // 모델 원점이 바닥 모서리에 있는 경우가 많아 x/z만 중앙으로 재정렬 (y는 바닥 접지 그대로 유지)
+          const box = new THREE.Box3().setFromObject(inner);
+          const cx = (box.min.x + box.max.x) / 2;
+          const cz = (box.min.z + box.max.z) / 2;
+          inner.position.set(-cx, 0, -cz);
+          const wrapper = new THREE.Group();
+          wrapper.add(inner);
+          if (style.scale) wrapper.scale.setScalar(style.scale);
+          place(wrapper);
+        }).catch(function (err) { console.error('가구 모델 로드 실패:', style.model, err); });
+      } else {
+        place(def.build(style));
+      }
+    });
+  }
+
+  function saveFurnitureState() {
+    localStorage.setItem(FURNITURE_KEY, JSON.stringify(furnitureState));
+  }
+
+  function selectFurnitureStyle(cat, styleId) {
+    furnitureState[cat] = styleId;
+    saveFurnitureState();
+    rebuildFurniture();
+    refreshPickerUI();
+  }
+
+  function refreshPickerUI() {
+    document.querySelectorAll('#furniturePicker .cat-row').forEach(function (row) {
+      const cat = row.dataset.category;
+      const current = furnitureState[cat] || null;
+      row.querySelectorAll('.swatch').forEach(function (btn) {
+        const isCurrentOff = !btn.dataset.style && !current;
+        btn.classList.toggle('active', btn.dataset.style ? btn.dataset.style === current : isCurrentOff);
+      });
+    });
+  }
+
+  rebuildFurniture();
+  refreshPickerUI();
+
+  // ------------------------------------------------------------
+  // 벽지 / 몰딩 / 바닥 - 단일 선택(항상 하나는 활성), localStorage에 자동 저장
+  // ------------------------------------------------------------
+  const WALL_KEY = 'interior3dViewer.wallStyle';
+  const MOLDING_KEY = 'interior3dViewer.moldingStyle';
+  const FLOOR_KEY = 'interior3dViewer.floorStyle';
+
+  let wallStyleId = localStorage.getItem(WALL_KEY) || WALL_STYLES[0].id;
+  let moldingStyleId = localStorage.getItem(MOLDING_KEY) || MOLDING_STYLES[0].id;
+  let floorStyleId = localStorage.getItem(FLOOR_KEY) || FLOOR_STYLES[0].id;
+
+  function refreshRoomPickerUI() {
+    ['wallPicker', 'moldingPicker', 'floorPicker'].forEach(function (id) {
+      const current = id === 'wallPicker' ? wallStyleId : id === 'moldingPicker' ? moldingStyleId : floorStyleId;
+      document.querySelectorAll('#' + id + ' .swatch').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.style === current);
+      });
+    });
+  }
+
+  function applyWallStyle(styleId) {
+    const style = WALL_STYLES.filter(function (s) { return s.id === styleId; })[0];
+    if (!style) return;
+    wallStyleId = styleId;
+    localStorage.setItem(WALL_KEY, styleId);
+    const newDiffuse = loadWallMap(style.path + 'diffuse.jpg', true);
+    const newNormal = loadWallMap(style.path + 'normal.jpg', false);
+    const newAO = loadWallMap(style.path + 'ao.jpg', false);
+    if (wallMat.map) wallMat.map.dispose();
+    if (wallMat.normalMap) wallMat.normalMap.dispose();
+    if (wallMat.aoMap) wallMat.aoMap.dispose();
+    wallMat.map = newDiffuse;
+    wallMat.normalMap = newNormal;
+    wallMat.aoMap = newAO;
+    wallMat.needsUpdate = true;
+  }
+
+  function applyMoldingStyle(styleId) {
+    const style = MOLDING_STYLES.filter(function (s) { return s.id === styleId; })[0];
+    if (!style) return;
+    moldingStyleId = styleId;
+    localStorage.setItem(MOLDING_KEY, styleId);
+    baseboardMat.color.set(style.color);
+  }
+
+  function applyFloorStyle(styleId) {
+    const style = FLOOR_STYLES.filter(function (s) { return s.id === styleId; })[0];
+    if (!style) return;
+    floorStyleId = styleId;
+    localStorage.setItem(FLOOR_KEY, styleId);
+    const newTex = createFloorTexture(hexStr(style.color));
+    if (floorMat.map) floorMat.map.dispose();
+    floorMat.map = newTex;
+    floorMat.needsUpdate = true;
+  }
+
+  // 저장된 값이 기본값과 다르면 실제로 적용
+  if (wallStyleId !== WALL_STYLES[0].id) applyWallStyle(wallStyleId);
+  if (moldingStyleId !== MOLDING_STYLES[0].id) applyMoldingStyle(moldingStyleId);
+  if (floorStyleId !== FLOOR_STYLES[0].id) applyFloorStyle(floorStyleId);
+  refreshRoomPickerUI();
+
+  // ------------------------------------------------------------
+  // 줌 단계 (1x/2x/3x) - camera.zoom으로 화각/구도 왜곡 없이 중앙 확대
+  // ------------------------------------------------------------
+  const ZOOM_KEY = 'interior3dViewer.zoom';
+  const ZOOM_LEVELS = [1, 2, 3];
+
+  let zoomLevel = parseFloat(localStorage.getItem(ZOOM_KEY));
+  if (ZOOM_LEVELS.indexOf(zoomLevel) === -1) zoomLevel = 1;
+
+  function applyZoom(level) {
+    zoomLevel = level;
+    camera.zoom = level;
+    camera.updateProjectionMatrix();
+    localStorage.setItem(ZOOM_KEY, String(level));
+    document.querySelectorAll('#zoomPicker .zoom-btn').forEach(function (btn) {
+      btn.classList.toggle('active', parseFloat(btn.dataset.level) === level);
+    });
+  }
+
+
+  applyZoom(zoomLevel);
+
+  // ------------------------------------------------------------
+  // 화면 후보정 (밝기/대비/채도/색온도/비네트) - CSS 필터 기반이라 OBS 캡처에도 그대로 반영됨
+  // ------------------------------------------------------------
+  const ADJUST_KEY = 'interior3dViewer.adjust';
+  const ADJUST_DEFAULTS = { brightness: 1, contrast: 1, saturation: 1, warmth: 0, vignette: 0.35, blur: 0, dofFocus: 4, dofBlur: 0 };
+
+  let adjust = Object.assign({}, ADJUST_DEFAULTS);
+  try {
+    const savedAdjust = JSON.parse(localStorage.getItem(ADJUST_KEY));
+    if (savedAdjust) adjust = Object.assign({}, ADJUST_DEFAULTS, savedAdjust);
+  } catch (e) {}
+
+  function applyAdjust() {
+    canvas.style.filter =
+      'brightness(' + adjust.brightness + ') ' +
+      'contrast(' + adjust.contrast + ') ' +
+      'saturate(' + adjust.saturation + ') ' +
+      'blur(' + adjust.blur + 'px)';
+    vignetteEl.style.setProperty('--vig-strength', adjust.vignette);
+    if (adjust.warmth >= 0) {
+      warmOverlayEl.style.background = 'rgba(255,170,80,' + (adjust.warmth * 0.35) + ')';
+    } else {
+      warmOverlayEl.style.background = 'rgba(120,170,255,' + (-adjust.warmth * 0.35) + ')';
+    }
+    // aperture/maxblur는 화면 비율(UV) 단위라 Retina 등 고해상도에서는 같은 값도 실제 픽셀 블러가 훨씬 커짐.
+    // 슬라이더 0~100%가 완만하게 이어지도록 배율을 작게 잡음 (100%가 되어도 방 전체가 뭉개지지 않는 정도)
+    bokehPass.uniforms.focus.value = adjust.dofFocus;
+    bokehPass.uniforms.aperture.value = adjust.dofBlur * 0.006;
+    bokehPass.uniforms.maxblur.value = adjust.dofBlur * 0.18;
+  }
+
+  function saveAdjust() {
+    localStorage.setItem(ADJUST_KEY, JSON.stringify(adjust));
+  }
+
+  const ADJUST_FIELDS = [
+    { id: 'adjBrightness', key: 'brightness', format: function (v) { return Math.round(v * 100) + '%'; } },
+    { id: 'adjContrast', key: 'contrast', format: function (v) { return Math.round(v * 100) + '%'; } },
+    { id: 'adjSaturation', key: 'saturation', format: function (v) { return Math.round(v * 100) + '%'; } },
+    { id: 'adjWarmth', key: 'warmth', format: function (v) { return (v > 0 ? '+' : '') + Math.round(v * 100); } },
+    { id: 'adjVignette', key: 'vignette', format: function (v) { return Math.round(v * 100) + '%'; } },
+    { id: 'adjBlur', key: 'blur', format: function (v) { return v + 'px'; } },
+    { id: 'adjDofFocus', key: 'dofFocus', format: function (v) { return v.toFixed(1) + 'm'; } },
+    { id: 'adjDofBlur', key: 'dofBlur', format: function (v) { return Math.round(v * 100) + '%'; } }
+  ];
+
+  // 패널에서 보정 슬라이더 UI는 없앴지만, 프리셋을 적용할 때 값 자체는 계속 갱신해야 하므로
+  // 남아있는 엘리먼트가 있으면만 반영하도록 안전하게 처리
+  function refreshAdjustUI() {
+    ADJUST_FIELDS.forEach(function (f) {
+      const input = document.getElementById(f.id);
+      const val = document.getElementById(f.id + 'Val');
+      if (input) input.value = String(adjust[f.key]);
+      if (val) val.textContent = f.format(adjust[f.key]);
+    });
+  }
+
+  refreshAdjustUI();
+  applyAdjust();
+
+  // ------------------------------------------------------------
+  // 프리셋 - 현재 벽지/몰딩/바닥/가구 배치/줌/보정 값을 통째로 저장하고 다시 불러옴
+  // ------------------------------------------------------------
+  const PRESETS_KEY = 'interior3dViewer.presets';
+  let presets = {};
+  try {
+    presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
+  } catch (e) { presets = {}; }
+
+  function getCurrentConfig() {
+    return {
+      wallStyleId: wallStyleId,
+      moldingStyleId: moldingStyleId,
+      floorStyleId: floorStyleId,
+      furnitureState: Object.assign({}, furnitureState),
+      furniturePositions: JSON.parse(JSON.stringify(furniturePositions)),
+      furnitureRotations: Object.assign({}, furnitureRotations),
+      zoomLevel: zoomLevel,
+      adjust: Object.assign({}, adjust),
+      timeOfDay: timeOfDay
+    };
+  }
+
+  function applyConfig(cfg) {
+    if (cfg.wallStyleId) applyWallStyle(cfg.wallStyleId);
+    if (cfg.moldingStyleId) applyMoldingStyle(cfg.moldingStyleId);
+    if (cfg.floorStyleId) applyFloorStyle(cfg.floorStyleId);
+    refreshRoomPickerUI();
+
+    furnitureState = Object.assign({}, cfg.furnitureState || {});
+    furniturePositions = JSON.parse(JSON.stringify(cfg.furniturePositions || {}));
+    furnitureRotations = Object.assign({}, cfg.furnitureRotations || {});
+    saveFurnitureState();
+    localStorage.setItem(FURNITURE_POS_KEY, JSON.stringify(furniturePositions));
+    localStorage.setItem(FURNITURE_ROT_KEY, JSON.stringify(furnitureRotations));
+    rebuildFurniture();
+    refreshPickerUI();
+
+    if (typeof cfg.zoomLevel === 'number') applyZoom(cfg.zoomLevel);
+
+    adjust = Object.assign({}, ADJUST_DEFAULTS, cfg.adjust || {});
+    refreshAdjustUI();
+    applyAdjust();
+    saveAdjust();
+
+    applyTimeOfDay(cfg.timeOfDay === 'night' ? 'night' : 'day');
+    if (typeof updateTimeUI === 'function') updateTimeUI();
+  }
+
+  function savePresetsToStorage() {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+  }
+
+  // 프리셋 <-> URL 인코딩 (한글 등 유니코드 안전하게 base64 처리)
+  function encodePreset(cfg) {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+  }
+  function decodePreset(str) {
+    return JSON.parse(decodeURIComponent(escape(atob(str))));
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      } catch (e) { reject(e); }
+    });
+  }
+
+  // renderPresetList가 초기 로드 시 즉시 호출되므로(아래 계정 상태 섹션보다 먼저 실행),
+  // 이 두 변수는 반드시 그 호출 이전에 선언돼 있어야 한다 (let의 TDZ로 인한 참조 오류 방지).
+  let currentUidForGallery = null;
+  let isAdminForGallery = false;
+
+  function renderPresetList() {
+    const root = document.getElementById('presetList');
+    root.innerHTML = '';
+    const names = Object.keys(presets);
+    if (names.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'preset-empty';
+      empty.textContent = '저장된 프리셋이 없습니다';
+      root.appendChild(empty);
+      return;
+    }
+    names.forEach(function (name) {
+      const row = document.createElement('div');
+      row.className = 'preset-row';
+
+      const label = document.createElement('span');
+      label.className = 'preset-name';
+      label.textContent = name;
+      label.title = name + ' (더블클릭하여 이름 변경)';
+      label.addEventListener('dblclick', function () {
+        const newName = window.prompt('새 이름을 입력하세요:', name);
+        if (newName === null) return;
+        const trimmed = newName.trim();
+        if (!trimmed || trimmed === name) return;
+        if (presets[trimmed] && !window.confirm('"' + trimmed + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+        const cfg = presets[name];
+        delete presets[name];
+        presets[trimmed] = cfg;
+        savePresetsToStorage();
+        renderPresetList();
+      });
+      row.appendChild(label);
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'preset-btn';
+      applyBtn.type = 'button';
+      applyBtn.textContent = '적용';
+      applyBtn.addEventListener('click', function () {
+        if (presets[name].sceneUrl) { window.location.href = presets[name].sceneUrl; return; }
+        applyConfig(presets[name]);
+      });
+      row.appendChild(applyBtn);
+
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'preset-btn';
+      shareBtn.type = 'button';
+      shareBtn.textContent = '공유';
+      shareBtn.title = '이 프리셋의 공유 링크를 클립보드에 복사';
+      shareBtn.addEventListener('click', function () {
+        const url = location.origin + location.pathname + '?preset=' + encodePreset(presets[name]);
+        copyToClipboard(url).then(function () {
+          shareBtn.textContent = '복사됨!';
+          setTimeout(function () { shareBtn.textContent = '공유'; }, 1500);
+        }).catch(function () {
+          window.prompt('아래 URL을 복사하세요:', url);
+        });
+      });
+      row.appendChild(shareBtn);
+
+      // OBS 링크 - 공유 링크와 달리 항상 실제 씬 파일(또는 이 방 설정이면 index.html)에
+      // ?obs=1을 붙여서, OBS 브라우저 소스로 추가하자마자(window.obsstudio 주입을
+      // 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 바로 시작하게 한다.
+      const obsBtn = document.createElement('button');
+      obsBtn.className = 'preset-btn';
+      obsBtn.type = 'button';
+      obsBtn.textContent = 'OBS';
+      obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+      obsBtn.addEventListener('click', function () {
+        const dir = location.pathname.replace(/[^/]*$/, '');
+        const url = presets[name].sceneUrl
+          ? location.origin + dir + presets[name].sceneUrl + '?obs=1'
+          : location.origin + dir + 'index.html?preset=' + encodePreset(presets[name]) + '&obs=1';
+        copyToClipboard(url).then(function () {
+          obsBtn.textContent = '복사됨!';
+          setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+        }).catch(function () {
+          window.prompt('아래 URL을 복사하세요:', url);
+        });
+      });
+      row.appendChild(obsBtn);
+
+      // 공개 갤러리 게시는 관리자 전용 - 비관리자는 이미 게시된 프리셋을 불러오기만 할 수 있다
+      if (isAdminForGallery) {
+        const publishBtn = document.createElement('button');
+        publishBtn.className = 'preset-btn';
+        publishBtn.type = 'button';
+        publishBtn.textContent = '게시';
+        publishBtn.title = '모두가 볼 수 있는 공개 갤러리에 올리기';
+        publishBtn.addEventListener('click', function () {
+          if (!window.__firebaseGallery) {
+            window.alert('Firebase 연결 준비 중입니다. 잠시 후 다시 시도해주세요.');
+            return;
+          }
+          window.__firebaseGallery.publish(name, presets[name]).then(function () {
+            publishBtn.textContent = '게시됨!';
+            setTimeout(function () { publishBtn.textContent = '게시'; }, 1500);
+          }).catch(function (err) {
+            console.error('갤러리 게시 실패:', err);
+            window.alert('갤러리 게시에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          });
+        });
+        row.appendChild(publishBtn);
+      }
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'preset-btn preset-btn--del';
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.title = '삭제';
+      delBtn.addEventListener('click', function () {
+        delete presets[name];
+        savePresetsToStorage();
+        renderPresetList();
+      });
+      row.appendChild(delBtn);
+
+      root.appendChild(row);
+    });
+  }
+
+  document.getElementById('presetSaveBtn').addEventListener('click', function () {
+    const input = document.getElementById('presetNameInput');
+    let name = input.value.trim();
+    if (!name) name = '프리셋 ' + (Object.keys(presets).length + 1);
+    presets[name] = getCurrentConfig();
+    savePresetsToStorage();
+    renderPresetList();
+    input.value = '';
+  });
+
+  document.getElementById('presetNameInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('presetSaveBtn').click();
+  });
+
+  renderPresetList();
+
+  // ------------------------------------------------------------
+  // 계정 상태 - 익명/Google 로그인. 모듈 스크립트(Firebase)가 이 스크립트보다 늦게
+  // 준비될 수 있어서 이벤트로만 연결한다 (window.__firebaseAuth를 직접 참조하지 않음).
+  // ------------------------------------------------------------
+  const authStatusEl = document.getElementById('authStatus');
+  const authBtnEl = document.getElementById('authBtn');
+
+  function updateAuthUI(detail) {
+    const user = detail && detail.user;
+    currentUidForGallery = user ? user.uid : null;
+    isAdminForGallery = !!(detail && detail.isAdmin);
+    authBtnEl.disabled = false;
+    if (detail && detail.isRealAccount) {
+      // 닉네임/이메일은 화면(방송)에 노출하지 않고 로그인 여부만 표시
+      authStatusEl.textContent = isAdminForGallery ? '로그인됨 (관리자)' : '로그인됨';
+      authBtnEl.textContent = '로그아웃';
+    } else {
+      authStatusEl.textContent = '익명 사용자';
+      authBtnEl.textContent = 'Google 로그인';
+    }
+    document.getElementById('addSceneLinkBtn').style.display = isAdminForGallery ? '' : 'none';
+    // 일반 유저는 로컬에 프리셋을 저장/관리하는 세션 자체가 필요 없다 - 갤러리에
+    // 이미 게시된 프리셋을 적용/OBS 링크 복사만 하면 된다. 관리자만 이 섹션으로
+    // 새 프리셋을 만들고 게시할 수 있다.
+    document.getElementById('localPresetSection').style.display = isAdminForGallery ? '' : 'none';
+    renderPresetList();
+    renderGalleryOwnership();
+  }
+
+  // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는 프리셋을
+  // 로컬 목록에 추가 - 이후 그 프리셋 줄의 "게시" 버튼을 누르면 관리자 인증을 거쳐
+  // 정상적으로 갤러리에 게시된다 (uid는 항상 그 브라우저의 실제 로그인 세션에서 나옴)
+  document.getElementById('addSceneLinkBtn').addEventListener('click', function () {
+    const name = window.prompt('프리셋 이름을 입력하세요 (예: 기본 프리셋 2):');
+    if (name === null || !name.trim()) return;
+    const url = window.prompt('연결할 배경 페이지 파일명을 입력하세요 (예: ski-resort.html):', 'ski-resort.html');
+    if (url === null) return;
+    const trimmedUrl = url.trim();
+    if (!/^[a-zA-Z0-9_-]+\.html$/.test(trimmedUrl)) {
+      window.alert('같은 폴더의 html 파일명만 입력할 수 있어요 (예: ski-resort.html).');
+      return;
+    }
+    const trimmedName = name.trim();
+    if (presets[trimmedName] && !window.confirm('"' + trimmedName + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+    presets[trimmedName] = { sceneUrl: trimmedUrl };
+    savePresetsToStorage();
+    renderPresetList();
+  });
+
+  authBtnEl.addEventListener('click', function () {
+    if (!window.__firebaseAuth) return;
+    if (window.__firebaseAuth.isRealAccount()) {
+      window.__firebaseAuth.signOut();
+    } else {
+      window.__firebaseAuth.signIn();
+    }
+  });
+
+  window.addEventListener('firebase-auth-changed', function (e) { updateAuthUI(e.detail); });
+
+  // ------------------------------------------------------------
+  // 낮/밤 토글 - applyTimeOfDay/timeOfDay는 같은 스크립트 안(위쪽 조명 섹션)에 이미
+  // 정의돼 있어서 Firebase처럼 이벤트로 연결할 필요 없이 바로 호출하면 된다.
+  // ------------------------------------------------------------
+  const timeStatusEl = document.getElementById('timeStatus');
+  const timeToggleBtnEl = document.getElementById('timeToggleBtn');
+
+  function updateTimeUI() {
+    if (timeOfDay === 'night') {
+      timeStatusEl.textContent = '밤';
+      timeToggleBtnEl.textContent = '☀️ 낮으로 전환';
+    } else {
+      timeStatusEl.textContent = '낮';
+      timeToggleBtnEl.textContent = '🌙 밤으로 전환';
+    }
+  }
+
+  timeToggleBtnEl.addEventListener('click', function () {
+    applyTimeOfDay(timeOfDay === 'night' ? 'day' : 'night');
+    updateTimeUI();
+  });
+
+  updateTimeUI();
+
+  // ------------------------------------------------------------
+  // 공개 갤러리 - Firebase RTDB의 presetGallery 노드를 실시간 구독해서 목록으로 표시
+  // 모듈 스크립트(Firebase)가 이 스크립트보다 늦게 준비될 수 있어서 이벤트로 연결
+  // ------------------------------------------------------------
+  let lastGalleryEntries = null;
+
+  function renderGalleryOwnership() {
+    if (lastGalleryEntries) renderGallery(lastGalleryEntries);
+  }
+
+  function renderGallery(entries) {
+    lastGalleryEntries = entries;
+    const root = document.getElementById('galleryList');
+    root.innerHTML = '';
+    const keys = Object.keys(entries);
+    if (keys.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'preset-empty';
+      empty.textContent = '아직 게시된 프리셋이 없습니다';
+      root.appendChild(empty);
+      return;
+    }
+    keys.sort(function (a, b) { return (entries[b].createdAt || 0) - (entries[a].createdAt || 0); });
+    keys.forEach(function (key) {
+      const entry = entries[key];
+      if (!entry || !entry.config) return;
+
+      const row = document.createElement('div');
+      row.className = 'preset-row';
+
+      const label = document.createElement('span');
+      label.className = 'preset-name';
+      label.textContent = entry.name || '(이름 없음)';
+      // 이름 변경(더블클릭)은 관리자만 - 서버(updatePreset)도 requireAdmin으로
+      // 검증하지만, 비관리자에겐 애초에 그런 조작이 가능한 것처럼 보이지 않게 한다.
+      if (isAdminForGallery) {
+        label.title = (entry.name || '') + ' (더블클릭하여 이름 변경)';
+        label.style.cursor = 'pointer';
+        label.addEventListener('dblclick', function () {
+          const newName = window.prompt('새 이름을 입력하세요:', entry.name || '');
+          if (newName === null) return;
+          const trimmed = newName.trim();
+          if (!trimmed || trimmed === entry.name) return;
+          window.__firebaseGallery.update(key, trimmed, entry.config).catch(function (err) {
+            console.error('갤러리 이름 변경 실패:', err);
+            window.alert('이름 변경에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          });
+        });
+      } else {
+        label.title = entry.name || '';
+      }
+      row.appendChild(label);
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'preset-btn';
+      applyBtn.type = 'button';
+      applyBtn.textContent = '적용';
+      applyBtn.addEventListener('click', function () {
+        // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는
+        // 프리셋 - sceneUrl이 있으면 방 설정을 적용하는 대신 그 페이지로 이동한다
+        if (entry.config.sceneUrl) {
+          window.location.href = entry.config.sceneUrl;
+          return;
+        }
+        applyConfig(entry.config);
+      });
+      row.appendChild(applyBtn);
+
+      // OBS 링크 - sceneUrl 프리셋이면 그 배경 페이지로 바로, 방 설정 프리셋이면
+      // index.html로 연결하고 둘 다 ?obs=1을 붙여서 OBS 브라우저 소스로 추가하자마자
+      // (window.obsstudio 주입을 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 시작한다.
+      const obsBtn = document.createElement('button');
+      obsBtn.className = 'preset-btn';
+      obsBtn.type = 'button';
+      obsBtn.textContent = 'OBS';
+      obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+      obsBtn.addEventListener('click', function () {
+        const dir = location.pathname.replace(/[^/]*$/, '');
+        const url = entry.config.sceneUrl
+          ? location.origin + dir + entry.config.sceneUrl + '?obs=1'
+          : location.origin + dir + 'index.html?preset=' + encodePreset(entry.config) + '&obs=1';
+        copyToClipboard(url).then(function () {
+          obsBtn.textContent = '복사됨!';
+          setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+        }).catch(function () {
+          window.prompt('아래 URL을 복사하세요:', url);
+        });
+      });
+      row.appendChild(obsBtn);
+
+      // 게시/수정/삭제는 관리자 전용 - 비관리자는 적용·OBS 링크 복사만 가능
+      if (isAdminForGallery) {
+        // sceneUrl(다른 배경 페이지로 연결) 프리셋은 "지금 화면 설정"으로 덮어쓸 대상이
+        // 아니므로 수정 버튼은 방 설정 프리셋에서만 보여준다
+        if (!entry.config.sceneUrl) {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'preset-btn';
+          editBtn.type = 'button';
+          editBtn.textContent = '수정';
+          editBtn.title = '지금 화면의 설정으로 이 게시물을 덮어쓰기';
+          editBtn.addEventListener('click', function () {
+            if (!window.confirm('"' + (entry.name || '') + '" 게시물을 지금 화면 설정으로 덮어쓸까요?')) return;
+            window.__firebaseGallery.update(key, entry.name, getCurrentConfig()).then(function () {
+              editBtn.textContent = '수정됨!';
+              setTimeout(function () { editBtn.textContent = '수정'; }, 1500);
+            }).catch(function (err) {
+              console.error('갤러리 수정 실패:', err);
+              window.alert('수정에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            });
+          });
+          row.appendChild(editBtn);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'preset-btn preset-btn--del';
+        delBtn.type = 'button';
+        delBtn.textContent = '✕';
+        delBtn.title = '게시물 삭제';
+        delBtn.addEventListener('click', function () {
+          if (!window.confirm('"' + (entry.name || '') + '" 게시물을 삭제할까요?')) return;
+          window.__firebaseGallery.remove(key).catch(function (err) {
+            console.error('갤러리 삭제 실패:', err);
+            window.alert('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          });
+        });
+        row.appendChild(delBtn);
+      }
+
+      root.appendChild(row);
+    });
+  }
+
+  function initGalleryBridge() {
+    if (!window.__firebaseGallery) return;
+    window.__firebaseGallery.subscribe(renderGallery, function () {
+      const root = document.getElementById('galleryList');
+      root.innerHTML = '';
+      const errEl = document.createElement('p');
+      errEl.className = 'preset-empty';
+      errEl.textContent = '갤러리를 불러올 수 없습니다 (Firebase 규칙 확인 필요)';
+      root.appendChild(errEl);
+    });
+  }
+  if (window.__firebaseGallery) {
+    initGalleryBridge();
+  } else {
+    window.addEventListener('firebase-gallery-ready', initGalleryBridge);
+  }
+
+  // URL에 ?preset=... 이 붙어서 들어오면 자동으로 불러와서 적용 + 내 프리셋 목록에도 저장
+  (function importPresetFromURL() {
+    const params = new URLSearchParams(location.search);
+    const encoded = params.get('preset');
+    if (!encoded) return;
+    let cfg;
+    try {
+      cfg = decodePreset(encoded);
+    } catch (e) {
+      console.error('프리셋 링크를 읽는 데 실패했습니다:', e);
+      return;
+    }
+    let name = '공유받은 프리셋';
+    let i = 2;
+    while (presets[name]) { name = '공유받은 프리셋 ' + i; i++; }
+    presets[name] = cfg;
+    savePresetsToStorage();
+    renderPresetList();
+    // sceneUrl 프리셋은 열자마자 다른 페이지로 튕기면 당황스러우니, 목록에만 저장해두고
+    // 실제 이동은 사용자가 "적용"을 눌렀을 때만 한다
+    if (!cfg.sceneUrl) applyConfig(cfg);
+
+    const cleanUrl = new URL(location.href);
+    cleanUrl.searchParams.delete('preset');
+    history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+  })();
+
+  // ------------------------------------------------------------
+  // 더블클릭으로 전체화면 전환/복귀
+  // ------------------------------------------------------------
+  canvas.addEventListener('dblclick', function () {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(function (err) {
+        console.error('전체화면 전환 실패:', err);
+      });
+    }
+  });
+
+  // ------------------------------------------------------------
+  // 리사이즈 - 창 크기가 바뀌어도 16:9 비율만 유지한 채 중앙에 맞춤 (레터박스)
+  // ------------------------------------------------------------
+  const appEl = document.getElementById('app');
+
+  function fitCanvas() {
+    // devbar가 자기 높이만큼 공간을 차지하므로, window 전체가 아니라
+    // #app에 실제로 남은 영역(flex 계산 후) 기준으로 16:9를 맞춘다.
+    const rect = appEl.getBoundingClientRect();
+    const ww = rect.width;
+    const wh = rect.height;
+    let w, h;
+    if (ww / wh > FIXED_ASPECT) {
+      h = wh;
+      w = h * FIXED_ASPECT;
+    } else {
+      w = ww;
+      h = w / FIXED_ASPECT;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h);
+    composer.setSize(w, h);
+    bokehPass.renderTargetDepth.setSize(w, h);
+    vignetteEl.style.width = w + 'px';
+    vignetteEl.style.height = h + 'px';
+    warmOverlayEl.style.width = w + 'px';
+    warmOverlayEl.style.height = h + 'px';
+  }
+  window.addEventListener('resize', fitCanvas);
+  fitCanvas();
+
+  // ------------------------------------------------------------
+  // obs-browser 플러그인은 실제 방송 소스로 렌더링될 때 window.obsstudio를 주입함.
+  // 이 값이 있으면 OBS가 직접 캡처 중인 것이므로 설정 패널/devbar를 아예 숨겨서
+  // 방송 화면은 항상 깨끗하게 나오고, 스트리머는 일반 브라우저 탭으로 열어 설정하면 됨.
+  // devbar가 사라지면 #app이 차지하는 높이가 늘어나므로 fitCanvas를 다시 호출한다.
+  // URL에 ?obs=1이 있어도 동일하게 취급한다 — "OBS" 프리셋 링크가 이 파라미터를
+  // 붙여서, window.obsstudio 주입 타이밍에 기대지 않고 로드 즉시 확실하게 꽉 찬
+  // 화면으로 시작하게 하고, 일반 브라우저 탭에서도 같은 링크로 미리 확인 가능하다.
+  // ------------------------------------------------------------
+  const inOBS = !!window.obsstudio || new URLSearchParams(location.search).get('obs') === '1';
+  if (inOBS) {
+    sidePanel.style.display = 'none';
+    document.getElementById('devbar').style.display = 'none';
+    fitCanvas();
+  }
+
+  // 전체화면일 땐 설정 패널과 devbar를 숨겨서 화면을 가리지 않게 한다 (OBS 모드에서는
+  // 원래도 항상 숨겨져 있으니 그 상태를 건드리지 않는다). devbar는 일반 흐름(flex)을
+  // 차지하는 요소라 사라지면 #app 크기가 바뀌므로 fitCanvas를 다시 호출해야 한다.
+  const devbarEl = document.getElementById('devbar');
+  document.addEventListener('fullscreenchange', function () {
+    if (inOBS) return;
+    const fs = !!document.fullscreenElement;
+    sidePanel.style.display = fs ? 'none' : '';
+    devbarEl.style.display = fs ? 'none' : '';
+    fitCanvas();
+  });
+
+  // ------------------------------------------------------------
+  // devbar 자동 스크롤(마퀴) - 콘텐츠가 보이는 영역보다 넘칠 때만 동작.
+  // 트랙을 통째로 복제해서 뒤에 이어붙이고, 원본 폭만큼만 이동 후 리셋되는
+  // translateX(-50%) 애니메이션으로 이음매 없이 무한 반복되게 한다.
+  // ------------------------------------------------------------
+  (function setupDevbarMarquee() {
+    const viewport = document.getElementById('devbarViewport');
+    const track = document.getElementById('devbarTrack');
+    if (!viewport || !track) return;
+
+    function rebuild() {
+      track.querySelectorAll('[data-clone]').forEach(function (el) { el.remove(); });
+      track.classList.remove('auto-scroll');
+      track.style.removeProperty('--devbar-duration');
+
+      if (track.scrollWidth <= viewport.clientWidth) return;
+
+      const originalWidth = track.scrollWidth;
+      Array.prototype.slice.call(track.children).forEach(function (child) {
+        const clone = child.cloneNode(true);
+        clone.setAttribute('data-clone', 'true');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.setAttribute('tabindex', '-1');
+        track.appendChild(clone);
+      });
+
+      const PX_PER_SECOND = 40;
+      const duration = Math.max(8, originalWidth / PX_PER_SECOND);
+      track.style.setProperty('--devbar-duration', duration + 's');
+      track.classList.add('auto-scroll');
+    }
+
+    rebuild();
+    let resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(rebuild, 200);
+    });
+  })();
+
+  // ------------------------------------------------------------
+  // 패널 드래그 이동 (상단 핸들을 잡고 드래그, 위치는 localStorage에 저장)
+  // ------------------------------------------------------------
+  const PANEL_POS_KEY = 'interior3dViewer.panelPos';
+  let panelDragging = false;
+  let panelDragOffsetX = 0, panelDragOffsetY = 0;
+
+  // sidePanel의 top/left는 CSS상 위치가 정해진 조상인 #app 기준 좌표인데, e.clientX/Y와
+  // getBoundingClientRect()는 항상 뷰포트 기준 좌표라서 그대로 섞어 쓰면 #app이 뷰포트
+  // 맨 위에 딱 붙어있을 때만 우연히 맞아떨어진다. devbar가 생기면서 #app이 뷰포트 상단에서
+  // 내려간 만큼 어긋나(드래그 시작하자마자 패널이 아래로 튀는 버그) - 아래 함수들로 항상
+  // "#app 기준 좌표"로 변환해서 다룬다.
+  function clampPanelPos(left, top) {
+    const rect = sidePanel.getBoundingClientRect();
+    const appRect = appEl.getBoundingClientRect();
+    const margin = 40; // 화면 밖으로 완전히 나가지 않도록 최소 이만큼은 보이게
+    const maxLeft = appRect.width - margin;
+    const maxTop = appRect.height - margin;
+    const minLeft = margin - rect.width;
+    return [
+      Math.max(minLeft, Math.min(maxLeft, left)),
+      Math.max(0, Math.min(maxTop, top))
+    ];
+  }
+
+  function setPanelPosition(left, top) {
+    sidePanel.style.left = left + 'px';
+    sidePanel.style.top = top + 'px';
+    sidePanel.style.right = 'auto';
+    sidePanel.style.transform = 'none';
+  }
+
+  function stopPanelDrag() {
+    panelDragging = false;
+  }
+
+  panelHandle.addEventListener('pointerdown', function (e) {
+    panelDragging = true;
+    const rect = sidePanel.getBoundingClientRect();
+    panelDragOffsetX = e.clientX - rect.left;
+    panelDragOffsetY = e.clientY - rect.top;
+    panelHandle.setPointerCapture(e.pointerId);
+  });
+
+  panelHandle.addEventListener('pointermove', function (e) {
+    if (!panelDragging) return;
+    // pointerup/pointercancel을 놓쳐서 panelDragging이 true로 눌러붙어 있으면(예: 드래그 도중
+    // alt-tab, 브라우저 제스처 등으로 release 이벤트가 유실된 경우) 버튼을 안 눌렀는데도
+    // 마우스를 핸들 위로 올리기만 해도(pointermove는 버튼 여부와 무관하게 발생) 패널이 갑자기
+    // 따라 움직이는 버그가 생긴다. 매 move마다 주 버튼이 실제로 눌려있는지 다시 확인해서
+    // 아니라면 그 자리에서 드래그 상태를 취소한다.
+    if ((e.buttons & 1) === 0) { stopPanelDrag(); return; }
+    const appRect = appEl.getBoundingClientRect();
+    const clamped = clampPanelPos(e.clientX - panelDragOffsetX - appRect.left, e.clientY - panelDragOffsetY - appRect.top);
+    setPanelPosition(clamped[0], clamped[1]);
+  });
+
+  panelHandle.addEventListener('pointerup', function (e) {
+    if (!panelDragging) return;
+    stopPanelDrag();
+    const rect = sidePanel.getBoundingClientRect();
+    const appRect = appEl.getBoundingClientRect();
+    localStorage.setItem(PANEL_POS_KEY, JSON.stringify({ left: rect.left - appRect.left, top: rect.top - appRect.top }));
+    try { panelHandle.releasePointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  // pointerup이 아니라 pointercancel로 끝나는 경우(터치 제스처가 스크롤/줌으로 해석되거나
+  // 브라우저가 캡처를 강제로 해제하는 경우 등)에도 반드시 드래그 상태를 정리해야 한다.
+  panelHandle.addEventListener('pointercancel', stopPanelDrag);
+
+  (function restorePanelPosition() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(PANEL_POS_KEY)); } catch (e) {}
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+      const clamped = clampPanelPos(saved.left, saved.top);
+      setPanelPosition(clamped[0], clamped[1]);
+    }
+  })();
+
+  window.addEventListener('resize', function () {
+    if (sidePanel.style.left && sidePanel.style.left !== 'auto') {
+      const rect = sidePanel.getBoundingClientRect();
+      const appRect = appEl.getBoundingClientRect();
+      const clamped = clampPanelPos(rect.left - appRect.left, rect.top - appRect.top);
+      setPanelPosition(clamped[0], clamped[1]);
+    }
+  });
+
+  // ------------------------------------------------------------
+  // 렌더 루프 (카메라/구도 고정 - 상호작용 없음)
+  // ------------------------------------------------------------
+  function animate() {
+    requestAnimationFrame(animate);
+    if (adjust.dofBlur > 0) {
+      composer.render();
+    } else {
+      renderer.render(scene, camera);
+    }
+  }
+  animate();
+
+  loadingEl.classList.add('hidden');
+})();
+</script>
+</body>
+</html>

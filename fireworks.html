@@ -1,0 +1,1910 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>스트리머 배경시장 · 불꽃놀이</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: #04060a;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #04060a;
+  }
+
+  #scene {
+    display: block;
+    touch-action: none;
+  }
+
+  #loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #04060a;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    transition: opacity 0.6s ease;
+    z-index: 20;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  #sidePanel {
+    position: absolute;
+    top: 50%; right: 8%;
+    transform: translateY(-50%);
+    width: 250px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(20, 18, 16, 0.55);
+    backdrop-filter: blur(6px);
+    color: rgba(255,255,255,0.88);
+    font-size: 12px;
+    z-index: 10;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+  }
+  #sidePanel::-webkit-scrollbar { width: 6px; }
+  #sidePanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 3px; }
+
+  #panelHandle {
+    cursor: grab;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -14px -14px 8px -14px;
+    padding: 7px 0;
+    border-radius: 14px 14px 0 0;
+    touch-action: none;
+    transition: background 0.15s ease;
+  }
+  #panelHandle:hover { background: rgba(255,255,255,0.06); }
+  #panelHandle:active { cursor: grabbing; }
+  #panelHandle .panel-grip {
+    width: 32px; height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.3);
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin: 0 0 12px;
+  }
+
+  .panel-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0 0 14px;
+  }
+
+  .auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
+  #authStatus {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #authBtn {
+    flex: none;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.9);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  #authBtn:hover { background: rgba(255,255,255,0.14); }
+  #authBtn:disabled { opacity: 0.5; cursor: default; }
+
+  .preset-save-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  #presetNameInput {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    outline: none;
+  }
+  #presetNameInput::placeholder { color: rgba(255,255,255,0.4); }
+  #presetNameInput:focus { border-color: rgba(232, 166, 87, 0.6); }
+  #presetSaveBtn {
+    flex: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(232, 166, 87, 0.85);
+    color: #1a1410;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #presetSaveBtn:hover { background: #e8a657; }
+
+  .panel-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.14);
+    margin: 12px 0;
+  }
+
+  .preset-empty {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+  }
+  .preset-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .preset-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.88);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+  }
+  .preset-btn {
+    flex: none;
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.85);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  .preset-btn:hover { border-color: rgba(232, 166, 87, 0.6); }
+  .preset-btn--del {
+    color: rgba(255,255,255,0.5);
+    padding: 4px 7px;
+  }
+  .preset-btn--del:hover { color: #e08a6a; border-color: rgba(224, 138, 106, 0.6); }
+
+  /* devbar - 다른 제작 게임 홍보용 상단 바, 넘칠 때만 JS가 자동 스크롤 처리 */
+  .devbar {
+    flex: none;
+    background: #0e1116;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+    z-index: 30;
+  }
+  .devbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 7px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .devbar-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .devbar-viewport { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .devbar-track { display: flex; gap: 8px; width: max-content; }
+  .devbar-track.auto-scroll { animation: devbar-scroll var(--devbar-duration, 20s) linear infinite; }
+  .devbar-track.auto-scroll:hover { animation-play-state: paused; }
+  @keyframes devbar-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .devbar-track.auto-scroll { animation: none; }
+    .devbar-viewport { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+  .dev-game-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 6px 11px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.12s ease;
+  }
+  .dev-game-link:hover { background: rgba(255,255,255,0.18); }
+</style>
+</head>
+<body>
+
+<div class="devbar" id="devbar">
+  <div class="devbar-inner">
+    <div class="devbar-viewport" id="devbarViewport">
+      <div class="devbar-track" id="devbarTrack">
+        <span class="devbar-label">스트리머 배경시장 · BY 오목지면시그</span>
+        <a class="dev-game-link" href="https://www.sooplive.com/station/skftodwocks2" target="_blank" rel="noopener noreferrer">방송국</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/soop-stock-market/index.html" target="_blank" rel="noopener noreferrer">스트리머 주식시장</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/dont-click-ads/" target="_blank" rel="noopener noreferrer">절대 광고를 클릭하지 마</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/midnight-mart-run/" target="_blank" rel="noopener noreferrer">미트나잇 마트런</a>
+        <a class="dev-game-link" href="https://neezu-crypto.github.io/StreamBet-Market/" target="_blank" rel="noopener noreferrer">스트리머 배팅시장</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <div id="sidePanel">
+    <div id="panelHandle" title="드래그해서 패널 위치 이동"><div class="panel-grip"></div></div>
+
+    <div class="auth-row">
+      <span id="authStatus">계정 확인 중...</span>
+      <button id="authBtn" type="button" disabled>Google 로그인</button>
+    </div>
+
+    <p class="panel-hint">화면을 더블클릭하면 전체화면으로 전환·복귀돼요. 아래 갤러리에 게시된 프리셋을 적용하거나 OBS 브라우저 소스용 링크를 복사해 쓸 수 있어요. 새 프리셋 저장·공유·게시/삭제는 관리자 계정만 가능해요. 소리는 기본적으로 꺼져 있어요(방송 사고 방지).</p>
+
+    <div id="localPresetSection" style="display:none;">
+      <p class="panel-title">프리셋 (관리자 전용)</p>
+      <div class="preset-save-row">
+        <input type="text" id="presetNameInput" placeholder="프리셋 이름" maxlength="24">
+        <button id="presetSaveBtn" type="button">저장</button>
+      </div>
+      <button id="addSceneLinkBtn" type="button" style="display:none; width:100%; margin-bottom:10px; padding:6px 0;" class="preset-btn">🔗 다른 배경 페이지 링크 추가 (관리자)</button>
+      <div id="presetList"></div>
+
+      <div class="panel-divider"></div>
+    </div>
+
+    <p class="panel-title">갤러리 (모두 공개)</p>
+    <div id="galleryList" class="preset-empty">불러오는 중...</div>
+  </div>
+
+  <div id="loading">불러오는 중...</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+// 불꽃놀이 야시장 배경 - StreamBet-Market/js/firework-scene.js(원본: CodePen "Fireworks 2026 +
+// Boom Sound", Sabo Sugi, MIT)의 파티클/블룸/렌즈플레어 엔진을 그대로 가져오고, 이 프로젝트의
+// 다른 배경 페이지들과 같은 "고정 카메라 + 16:9 레터박스 + 패널/갤러리" 틀에 맞춰 도시 야경
+// 스카이라인 + 강물 반사를 새로 얹었다. 원본은 드론이 8자 궤적으로 도는 카메라를 쓰지만, 이
+// 프로젝트의 다른 씬들은 전부 방송 송출용으로 카메라 구도가 고정돼 있어 그 관례를 따랐다.
+//
+// 이 페이지는 (다른 페이지들과 달리) 최신 three.js를 ES 모듈로 불러온다 - r128(구식 스크립트
+// 태그) 기반인 index.html/ski-resort.html과 달리, 새로 만드는 페이지부터 최신 방식으로 시작하기로
+// 한 결정에 따른 것. 기존 페이지들은 그대로 두고 손대지 않는다.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ------------------------------------------------------------
+// Firebase RTDB - 공개 프리셋 갤러리용. index.html/ski-resort.html과 동일한 프로젝트를 그대로
+// 공유한다. 이 페이지는 전부 한 모듈 스크립트 안이라 window 커스텀 이벤트 브릿지 없이 그냥
+// 직접 참조해서 쓴다(다른 두 페이지는 classic script와 module script가 분리돼 있어 그 브릿지가
+// 필요했음).
+// ------------------------------------------------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js";
+import {
+  getAuth, GoogleAuthProvider, signInAnonymously, signInWithPopup, signInWithCredential,
+  linkWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAZcjQPHphENs-Bb7IfdL2qTtOMhJrRP54",
+  authDomain: "soop-stock-market.firebaseapp.com",
+  databaseURL: "https://soop-stock-market-default-rtdb.firebaseio.com",
+  projectId: "soop-stock-market",
+  storageBucket: "soop-stock-market.firebasestorage.app",
+  messagingSenderId: "997788925900",
+  appId: "1:997788925900:web:b58db2970489bf18a3a769"
+};
+const ADMIN_EMAIL = 'skftodwocks2@gmail.com';
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+const galleryRef = ref(db, 'presetGallery');
+const functions = getFunctions(fbApp, 'us-central1');
+const publishPresetFn = httpsCallable(functions, 'publishPreset');
+const deletePresetFn = httpsCallable(functions, 'deletePreset');
+const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
+const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
+const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+const auth = getAuth(fbApp);
+
+let currentUser = null;
+const firebaseAuthApi = {
+  isRealAccount: function () { return !!(currentUser && !currentUser.isAnonymous); },
+  isAdmin: function () { return !!(currentUser && !currentUser.isAnonymous && currentUser.email === ADMIN_EMAIL); },
+  signIn: function () {
+    const provider = new GoogleAuthProvider();
+    function handleFail(err) {
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+      console.error('Google 로그인 실패:', err);
+      window.alert('Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+    const oldUidBeforeSwitch = currentUser ? currentUser.uid : null;
+    function linkOrSwitch(ticket) {
+      return linkWithPopup(currentUser, provider).catch(function (err) {
+        if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+        if (err && err.code === 'auth/credential-already-in-use') {
+          const cred = GoogleAuthProvider.credentialFromError(err);
+          if (cred) {
+            return signInWithCredential(auth, cred).then(function () {
+              if (!ticket) {
+                return reportMergeFailureFn({ oldUidHint: oldUidBeforeSwitch, reason: 'no-ticket' }).catch(function (reportErr) {
+                  console.error('실패 로그 기록도 실패함:', reportErr);
+                });
+              }
+              return claimMergeFn({ ticket: ticket }).catch(function (claimErr) {
+                console.error('프리셋 소유권 이전 실패 (서버에 실패 로그가 남았을 수 있음):', claimErr);
+              });
+            }).catch(handleFail);
+          }
+        }
+        handleFail(err);
+      });
+    }
+    if (currentUser && currentUser.isAnonymous) {
+      return requestMergeTicketFn().then(function (res) {
+        return linkOrSwitch(res.data && res.data.ticket);
+      }).catch(function (err) {
+        console.error('병합 티켓 발급 실패, 티켓 없이 로그인 진행:', err);
+        return linkOrSwitch(null);
+      });
+    }
+    return signInWithPopup(auth, provider).catch(handleFail);
+  },
+  signOut: function () { return signOut(auth); }
+};
+
+// ------------------------------------------------------------
+// 기본 설정 - 방송 송출용 고정 16:9 (다른 배경 페이지들과 동일한 규칙)
+// ------------------------------------------------------------
+const FIXED_ASPECT = 16 / 9;
+const FIXED_FOV = 50;
+
+const canvas = document.getElementById('scene');
+const loadingEl = document.getElementById('loading');
+const sidePanel = document.getElementById('sidePanel');
+const panelHandle = document.getElementById('panelHandle');
+const appEl = document.getElementById('app');
+
+// ------------------------------------------------------------
+// 후보정 셰이더 - 비네트(화면 중앙으로 시선 유도) + 필름 그레인. firework-scene.js와 동일.
+// ------------------------------------------------------------
+const VignetteShader = {
+  uniforms: { tDiffuse: { value: null }, darkness: { value: 1.1 } },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D tDiffuse; uniform float darkness; varying vec2 vUv;' +
+    'void main() {' +
+    '  vec4 texel = texture2D(tDiffuse, vUv);' +
+    '  vec2 uv = vUv - 0.5;' +
+    '  float vig = 1.0 - dot(uv, uv) * darkness;' +
+    '  gl_FragColor = vec4(texel.rgb * clamp(vig, 0.0, 1.0), texel.a);' +
+    '}'
+};
+const FilmGrainShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAmount: { value: 0.02 } },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D tDiffuse; uniform float uTime; uniform float uAmount; varying vec2 vUv;' +
+    'float grainRand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }' +
+    'void main() {' +
+    '  vec4 texel = texture2D(tDiffuse, vUv);' +
+    '  float n = (grainRand(vUv * 1000.0 + uTime) - 0.5) * uAmount;' +
+    '  gl_FragColor = vec4(texel.rgb + n, texel.a);' +
+    '}'
+};
+
+// ------------------------------------------------------------
+// 불꽃놀이 파라미터 - firework-scene.js의 값을 기반으로 하되, 여기선 카메라가 고정이고
+// 스카이라인 위로 여러 발이 겹쳐 터지는 "그랜드 피날레" 느낌을 원해서 발사 간격을 줄이고
+// 한 번에 1~2발씩 쏘아올린다.
+// ------------------------------------------------------------
+const CONFIG = {
+  particleCount: 4200,
+  particleSize: 0.8,
+  fadeSpeed: 0.00482,
+  explosionForce: 3.3975,
+  hoverDuration: 1.5,
+  gravity: 0.00265,
+  friction: 0.95494,
+  rocketSpeed: 1.05,
+  rocketSize: 2.0,
+  bloomStrength: 1.35,
+  bloomRadius: 0.5,
+  launchInterval: 1300,
+  soundEnabled: false, // 방송 배경화면 용도라 기본은 무음 - 켜고 싶으면 이 값만 true로
+  volume: 0.15,
+  filmGrainAmount: 0.02,
+  dofFocusRange: 95,
+  dofMaxSizeMult: 2.0,
+  dofMaxFade: 0.4,
+  flareDuration: 0.6,
+  flareSize: 24
+};
+
+// 씬 스케일 - 수면(도시/불꽃의 기준선)이 y=WATER_Y, 카메라는 그보다 살짝 위에서 강 건너
+// 스카이라인을 바라본다. 불꽃은 건물 지붕(최대 ~60)보다 확실히 높은 고도에서 터지게 잡았다.
+const WATER_Y = -40;
+const CAMERA_POS = new THREE.Vector3(0, -8, 140);
+const CAM_LOOK_TARGET = new THREE.Vector3(0, 18, -35);
+const FOCUS_DIST = CAMERA_POS.distanceTo(CAM_LOOK_TARGET);
+const FLARE_DEPTH = 160;
+
+// --- 오디오(딥 베이스 "쿵" 폭발음) - firework-scene.js와 동일, 오디오 파일 없이 직접 합성 ---
+const AudioSys = {
+  ctx: null,
+  enabled: false,
+  volume: CONFIG.volume,
+  limiter: null,
+  init: function () {
+    if (!this.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      this.ctx = new Ctx();
+      this.limiter = this.ctx.createDynamicsCompressor();
+      this.limiter.threshold.value = -10;
+      this.limiter.knee.value = 40;
+      this.limiter.ratio.value = 12;
+      this.limiter.connect(this.ctx.destination);
+      this.enabled = true;
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  playDeepExplosion: function () {
+    if (!this.enabled || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const oscGain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(50, t);
+    osc.frequency.exponentialRampToValueAtTime(20, t + 2.5);
+    oscGain.gain.setValueAtTime(this.volume * 1.5, t);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, t + 5.0);
+    osc.connect(oscGain);
+    oscGain.connect(this.limiter);
+    osc.start(t);
+    osc.stop(t + 5.0);
+
+    const bufferSize = this.ctx.sampleRate * 5.0;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseFilter = this.ctx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.setValueAtTime(150, t);
+    noiseFilter.frequency.exponentialRampToValueAtTime(30, t + 4.0);
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(this.volume * 1.0, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 4.5);
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.limiter);
+    noise.start(t);
+
+    const crack = this.ctx.createOscillator();
+    crack.type = 'triangle';
+    const crackGain = this.ctx.createGain();
+    crack.frequency.setValueAtTime(200, t);
+    crack.frequency.exponentialRampToValueAtTime(50, t + 0.1);
+    crackGain.gain.setValueAtTime(this.volume * 0.3, t);
+    crackGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+    crack.connect(crackGain);
+    crackGain.connect(this.limiter);
+    crack.start(t);
+    crack.stop(t + 0.1);
+  }
+};
+
+// ------------------------------------------------------------
+// 발광 스프라이트 생성 - firework-scene.js와 동일한 절차적 캔버스 텍스처 방식
+// (외부 이미지 없이 가우시안 코어+헤일로를 32단계로 촘촘히 샘플링해 밴딩 없이 매끈하게)
+// ------------------------------------------------------------
+const GRADIENT_STEPS = 32;
+function fillGaussianRadial(ctx, cx, cy, r, curve) {
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  for (let i = 0; i <= GRADIENT_STEPS; i++) {
+    const t = i / GRADIENT_STEPS;
+    const a = Math.max(0, Math.min(1, curve(t)));
+    grad.addColorStop(t, 'rgba(255,255,255,' + a.toFixed(4) + ')');
+  }
+  return grad;
+}
+function fillGaussianLinear(ctx, x0, y0, x1, y1, curve) {
+  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+  for (let i = 0; i <= GRADIENT_STEPS; i++) {
+    const t = i / GRADIENT_STEPS;
+    const a = Math.max(0, Math.min(1, curve(t)));
+    grad.addColorStop(t, 'rgba(255,255,255,' + a.toFixed(4) + ')');
+  }
+  return grad;
+}
+function getSprite() {
+  const size = 128, cx = size / 2, cy = size / 2, r = size / 2;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = fillGaussianRadial(ctx, cx, cy, r, function (t) {
+    return Math.exp(-t * t * 7.0) + 0.55 * Math.exp(-t * t * 2.2);
+  });
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(cvs);
+}
+function getStarSprite() {
+  const size = 128, cx = size / 2, cy = size / 2;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  const spikes = 5, outerR = size * 0.47, innerR = size * 0.19;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-Math.PI / 2);
+  ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = (i * Math.PI) / spikes;
+    ctx.lineTo(r * Math.cos(a), r * Math.sin(a));
+  }
+  ctx.closePath();
+  ctx.restore();
+  ctx.fillStyle = fillGaussianRadial(ctx, cx, cy, size / 2, function (t) {
+    return Math.exp(-t * t * 4.0);
+  });
+  ctx.fill();
+  return new THREE.CanvasTexture(cvs);
+}
+function getRingSprite() {
+  const size = 256, cx = size / 2, cy = size / 2, r = size / 2;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  const ringT = 0.5, spread = 55;
+  ctx.fillStyle = fillGaussianRadial(ctx, cx, cy, r, function (t) {
+    const d = t - ringT;
+    return Math.exp(-d * d * spread);
+  });
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.anisotropy = 4;
+  return tex;
+}
+// 육각(조리개) 고스트 - 원래는 하드엣지 다각형 경로를 그대로 채워서, 확대하면 각지고
+// 계단져 보였다. ctx.filter로 블러를 먹인 채로 채우면 다각형 윤곽 자체가 부드럽게
+// 퍼져서, 조리개 느낌은 살짝 남기면서도 훨씬 고급스러운 렌즈 고스트처럼 보인다.
+function getHexSprite() {
+  const size = 256, cx = size / 2, cy = size / 2;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  const sides = 6, r = size * 0.3;
+  ctx.fillStyle = fillGaussianRadial(ctx, cx, cy, r * 1.15, function (t) {
+    return Math.exp(-t * t * 2.6);
+  });
+  ctx.filter = 'blur(14px)';
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.filter = 'none';
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.anisotropy = 4;
+  return tex;
+}
+function getStreakSprite() {
+  const w = 1024, h = 128;
+  const cvs = document.createElement('canvas');
+  cvs.width = w; cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = fillGaussianLinear(ctx, 0, 0, w, 0, function (t) {
+    const d = (t - 0.5) * 2.0;
+    return Math.exp(-d * d * 8.0);
+  });
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = fillGaussianLinear(ctx, 0, 0, 0, h, function (t) {
+    const d = (t - 0.5) * 2.0;
+    return Math.exp(-d * d * 3.0);
+  });
+  ctx.fillRect(0, 0, w, h);
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// 파티클 포인트 스프라이트 셰이더 - PointsMaterial은 포인트 단위 회전을 지원하지 않아서
+// 회전(aRotation)을 프래그먼트 셰이더에서 gl_PointCoord를 돌려 직접 구현한다. 카메라가
+// 고정이라 uFocus는 상수(FOCUS_DIST)로 한 번만 넣고 매 프레임 갱신할 필요가 없다.
+const SparkShader = {
+  vertexShader:
+    'attribute vec3 color;' +
+    'attribute float aRotation;' +
+    'varying vec3 vColor;' +
+    'varying float vRotation;' +
+    'varying float vCoc;' +
+    'uniform float uSize;' +
+    'uniform float uScale;' +
+    'uniform float uFocus;' +
+    'uniform float uFocusRange;' +
+    'uniform float uMaxSizeMult;' +
+    'void main() {' +
+    '  vColor = color;' +
+    '  vRotation = aRotation;' +
+    '  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);' +
+    '  float viewDist = -mvPosition.z;' +
+    '  float coc = clamp(abs(viewDist - uFocus) / uFocusRange, 0.0, 1.0);' +
+    '  vCoc = coc;' +
+    '  float sizeMult = mix(1.0, uMaxSizeMult, coc);' +
+    '  gl_PointSize = uSize * sizeMult * uScale / viewDist;' +
+    '  gl_Position = projectionMatrix * mvPosition;' +
+    '}',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D uMap;' +
+    'uniform float uMaxFade;' +
+    'varying vec3 vColor;' +
+    'varying float vRotation;' +
+    'varying float vCoc;' +
+    'void main() {' +
+    '  vec2 uv = gl_PointCoord - 0.5;' +
+    '  float s = sin(vRotation); float c = cos(vRotation);' +
+    '  vec2 ruv = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y) + 0.5;' +
+    '  vec4 texel = texture2D(uMap, ruv);' +
+    '  float fade = 1.0 - vCoc * uMaxFade;' +
+    '  gl_FragColor = vec4(vColor * texel.rgb * fade, texel.a * fade);' +
+    '}'
+};
+
+// ------------------------------------------------------------
+// 씬 / 카메라 / 렌더러 - 카메라는 완전히 고정(방송 배경 관례), 강 건너 스카이라인을 올려다보는 구도
+// ------------------------------------------------------------
+const particleSprite = getSprite();
+const particleSpriteStar = getStarSprite();
+const flareTexRing = getRingSprite();
+const flareTexHex = getHexSprite();
+const flareTexStreak = getStreakSprite();
+
+const scene = new THREE.Scene();
+
+// 밤하늘 그라디언트 - 위쪽은 거의 검정, 지평선(스카이라인) 쪽은 도시 불빛에 물든 옅은 주황빛
+function createSkyTexture() {
+  const w = 512, h = 512;
+  const cvs = document.createElement('canvas');
+  cvs.width = w; cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#01030a');
+  g.addColorStop(0.55, '#050a16');
+  g.addColorStop(0.82, '#2a1f22');
+  g.addColorStop(1, '#4a3226');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // 은은한 별
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  for (let i = 0; i < 180; i++) {
+    const x = Math.random() * w, y = Math.random() * h * 0.6;
+    const r = Math.random() * 0.9 + 0.2;
+    ctx.globalAlpha = Math.random() * 0.6 + 0.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+scene.background = createSkyTexture();
+scene.fog = new THREE.FogExp2(0x0a0e18, 0.0016);
+
+const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 3000);
+camera.position.copy(CAMERA_POS);
+camera.lookAt(CAM_LOOK_TARGET);
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+let sparkScaleValue = 400; // fitCanvas()에서 실제 캔버스 물리 픽셀 높이 기준으로 갱신됨
+
+// ------------------------------------------------------------
+// 도시 스카이라인 - 절차적 박스 빌딩 + 창문이 랜덤하게 켜진 캔버스 텍스처(라이팅 불필요,
+// 실루엣 그 자체가 이미 "야간에 조명 켜진 건물" 룩이라 MeshBasicMaterial로 충분하다).
+// ------------------------------------------------------------
+function createWindowTexture(seed) {
+  const w = 64, h = 128;
+  const cvs = document.createElement('canvas');
+  cvs.width = w; cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#050608';
+  ctx.fillRect(0, 0, w, h);
+  const cols = 5, rows = 11;
+  const cellW = w / cols, cellH = h / rows;
+  let s = seed;
+  function rand() { s = (s * 9301 + 49297) % 233280; return s / 233280; }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (rand() < 0.16) {
+        const warm = rand() < 0.75;
+        ctx.fillStyle = warm ? 'rgba(255,200,120,0.85)' : 'rgba(190,215,255,0.8)';
+        const pad = cellW * 0.22;
+        ctx.fillRect(c * cellW + pad, r * cellH + pad * 1.4, cellW - pad * 2, cellH - pad * 2.4);
+      }
+    }
+  }
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function buildSkyline() {
+  const group = new THREE.Group();
+  const windowTexA = createWindowTexture(11);
+  const windowTexB = createWindowTexture(47);
+  const windowTexC = createWindowTexture(93);
+  const texes = [windowTexA, windowTexB, windowTexC];
+  const darkMat = new THREE.MeshBasicMaterial({ color: 0x030407 });
+
+  // 왼쪽 끝부터 커서를 옮겨가며 배치 - 매번 폭만큼 커서를 옮기고 사이에 여백(gap)을
+  // 두기 때문에, 이전엔 (t-0.5)*300 균등분할 방식이라 건물 평균 폭(~15)이 건물 간격
+  // (~7)보다 넓어서 서로 뚫고 겹치던 문제가 구조적으로 생길 수 없다.
+  const TOTAL_WIDTH = 360;
+  let cursor = -TOTAL_WIDTH / 2;
+  let i = 0;
+  let landmarkPlaced = false;
+  while (cursor < TOTAL_WIDTH / 2) {
+    const width = 10 + Math.random() * 16;
+    const depth = 9 + Math.random() * 10;
+    const height = 30 + Math.random() * 65;
+    const gap = 2 + Math.random() * 5;
+    const x = cursor + width / 2;
+    const z = -55 + Math.random() * 15;
+
+    const sideMat = new THREE.MeshBasicMaterial({ map: texes[i % texes.length] });
+    const mats = [sideMat, sideMat, darkMat, darkMat, sideMat, sideMat];
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mats);
+    mesh.position.set(x, WATER_Y + height / 2, z);
+    group.add(mesh);
+
+    // 63빌딩 스타일의 뾰족한 랜드마크 타워를 스카이라인 중앙 부근에 하나 세워서
+    // 실루엣에 포인트를 준다
+    if (!landmarkPlaced && Math.abs(x) < 20) {
+      const towerH = height + 55;
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(width * 0.65, towerH, depth * 0.65), mats);
+      tower.position.set(x, WATER_Y + towerH / 2, z - 6);
+      group.add(tower);
+      landmarkPlaced = true;
+    }
+
+    cursor += width + gap;
+    i++;
+  }
+  return group;
+}
+
+const skyline = buildSkyline();
+scene.add(skyline);
+
+// 반사(거울) - 씬을 다시 렌더링하는 진짜 반사 대신, 스카이라인을 그대로 복제해 y를 뒤집고
+// 불투명도를 낮춘 "가짜 반사"를 쓴다. (같은 텍스처를 렌더타겟으로 썼다가 바로 다시 읽는
+// 방식은 이 프로젝트의 다른 배경 페이지에서 GPU에 따라 불안정한 것으로 확인된 적이 있어서
+// 일부러 피했다 - 이 방식은 씬을 두 번 그리지 않고 도형만 복제하는 것이라 그 문제와 무관하다.)
+const reflectionSkyline = skyline.clone(true);
+reflectionSkyline.scale.y = -1;
+reflectionSkyline.position.y = 2 * WATER_Y;
+reflectionSkyline.traverse(function (n) {
+  if (n.isMesh) {
+    n.material = (Array.isArray(n.material) ? n.material : [n.material]).map(function (m) {
+      const c = m.clone();
+      c.transparent = true;
+      c.opacity = 0.32;
+      return c;
+    });
+  }
+});
+scene.add(reflectionSkyline);
+
+// 물 표면 - 짙은 남색 반투명 판을 수면(WATER_Y) 높이에 깔아서, 그 아래 겹쳐 그린 반사
+// 오브젝트(뒤집힌 스카이라인·불꽃)가 물빛으로 은은하게 물들어 보이게 한다. 거리에 따른
+// 흐려짐/어두워짐은 scene.fog가 반사 오브젝트에도 똑같이 적용되므로 따로 처리 안 해도 된다.
+// PlaneGeometry는 기본적으로 XY평면(카메라를 향해 세워진 "벽")이라 -90도 돌려서
+// 수평(바닥/수면)으로 눕혀야 한다 - 처음엔 이걸 빼먹어서 그냥 허공에 뜬 세로 카드가 돼있었다.
+const waterOverlay = new THREE.Mesh(
+  new THREE.PlaneGeometry(900, 260),
+  new THREE.MeshBasicMaterial({ color: 0x050912, transparent: true, opacity: 0.5, depthWrite: false })
+);
+waterOverlay.rotation.x = -Math.PI / 2;
+waterOverlay.position.set(0, WATER_Y - 0.1, 90);
+scene.add(waterOverlay);
+
+// 밤하늘 별
+(function addStars() {
+  const starsGeo = new THREE.BufferGeometry();
+  const starsCnt = 2200;
+  const sPos = new Float32Array(starsCnt * 3);
+  for (let i = 0; i < starsCnt * 3; i += 3) {
+    sPos[i] = (Math.random() - 0.5) * 1400;
+    sPos[i + 1] = Math.random() * 500 + 40;
+    sPos[i + 2] = -400 - Math.random() * 600;
+  }
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+  const starsMat = new THREE.PointsMaterial({
+    size: 1.4, color: 0x99a8c8, map: particleSprite,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  scene.add(new THREE.Points(starsGeo, starsMat));
+})();
+
+// ------------------------------------------------------------
+// 후처리 - RenderPass + 블룸 + 비네트 + 필름그레인. 전부 최신 three.js 모듈 애드온이라
+// (다른 배경 페이지에서 겪었던 r128/최신 셰이더 청크 불일치 문제와 무관하게) 그대로 잘 맞는다.
+// ------------------------------------------------------------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+// threshold(4번째 인자)를 0으로 두면 창문처럼 화면 넓은 면적을 차지하는 은은한 광원까지
+// 전부 블룸에 걸려 뿌옇게 뭉개진다 - firework-scene.js는 배경이 거의 순수 검정이라 0이어도
+// 괜찮았지만, 여긴 스카이라인 창문이 있어서 정말 밝은 광원(불꽃 파티클·창문 하이라이트)만
+// 블룸이 걸리도록 문턱값을 올렸다.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1280, 720), CONFIG.bloomStrength, CONFIG.bloomRadius, 0.35);
+composer.addPass(bloomPass);
+
+// 틸트시프트 블러 - 실제 3D 깊이 대신 화면 세로 좌표만으로 블러 세기를 정하는 방식이라
+// (ski-resort.html에서 이미 검증된 기법) 씬을 두 번 그릴 필요가 없고, BokehPass 계열에서
+// 겪었던 GPU 불안정성과 무관하다. 스카이라인이 걸쳐있는 화면 중간 띠는 선명하게 두고
+// 위쪽 하늘(불꽃 원경)·아래쪽 수면 쪽은 부드럽게 흐려서 미니어처/시네마틱한 느낌을 준다.
+const TiltShiftShader = {
+  uniforms: { tDiffuse: { value: null }, h: { value: 1 / 512 }, v: { value: 1 / 512 }, r: { value: 0.5 } },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShaderH:
+    'uniform sampler2D tDiffuse; uniform float h; uniform float r; varying vec2 vUv;' +
+    'void main() {' +
+    '  vec4 sum = vec4(0.0);' +
+    '  float hh = h * abs(r - vUv.y);' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x - 4.0*hh, vUv.y)) * 0.051;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x - 3.0*hh, vUv.y)) * 0.0918;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x - 2.0*hh, vUv.y)) * 0.12245;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x - 1.0*hh, vUv.y)) * 0.1531;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y)) * 0.1633;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x + 1.0*hh, vUv.y)) * 0.1531;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x + 2.0*hh, vUv.y)) * 0.12245;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x + 3.0*hh, vUv.y)) * 0.0918;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x + 4.0*hh, vUv.y)) * 0.051;' +
+    '  gl_FragColor = sum;' +
+    '}',
+  fragmentShaderV:
+    'uniform sampler2D tDiffuse; uniform float v; uniform float r; varying vec2 vUv;' +
+    'void main() {' +
+    '  vec4 sum = vec4(0.0);' +
+    '  float vv = v * abs(r - vUv.y);' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y - 4.0*vv)) * 0.051;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y - 3.0*vv)) * 0.0918;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y - 2.0*vv)) * 0.12245;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y - 1.0*vv)) * 0.1531;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y)) * 0.1633;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y + 1.0*vv)) * 0.1531;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y + 2.0*vv)) * 0.12245;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y + 3.0*vv)) * 0.0918;' +
+    '  sum += texture2D(tDiffuse, vec2(vUv.x, vUv.y + 4.0*vv)) * 0.051;' +
+    '  gl_FragColor = sum;' +
+    '}'
+};
+const hBlur = new ShaderPass({
+  uniforms: THREE.UniformsUtils.clone(TiltShiftShader.uniforms),
+  vertexShader: TiltShiftShader.vertexShader,
+  fragmentShader: TiltShiftShader.fragmentShaderH
+});
+const vBlur = new ShaderPass({
+  uniforms: THREE.UniformsUtils.clone(TiltShiftShader.uniforms),
+  vertexShader: TiltShiftShader.vertexShader,
+  fragmentShader: TiltShiftShader.fragmentShaderV
+});
+const TILT_SHIFT_BLURINESS = 4.8;
+const TILT_SHIFT_FOCUS_R = 0.5;
+hBlur.uniforms.h.value = TILT_SHIFT_BLURINESS / 1280;
+vBlur.uniforms.v.value = TILT_SHIFT_BLURINESS / 720;
+hBlur.uniforms.r.value = vBlur.uniforms.r.value = TILT_SHIFT_FOCUS_R;
+composer.addPass(hBlur);
+composer.addPass(vBlur);
+
+const vignettePass = new ShaderPass(VignetteShader);
+composer.addPass(vignettePass);
+const filmGrainPass = new ShaderPass(FilmGrainShader);
+filmGrainPass.uniforms.uAmount.value = CONFIG.filmGrainAmount;
+filmGrainPass.enabled = false; // 필름 그레인(노이즈) 효과 끔 - 다시 켜려면 이 줄만 지우면 됨
+composer.addPass(filmGrainPass);
+composer.addPass(new OutputPass());
+
+// ------------------------------------------------------------
+// 불꽃 클래스 - firework-scene.js의 로켓 발사 → 폭발(구형/링형/이중/스트리머) → 렌즈플레어
+// 로직을 그대로 가져오되, 고정 카메라에 맞춰 uFocus를 상수로 쓰고, 수면 위 반사용으로
+// y를 뒤집은 파티클 시스템을 하나 더 그린다.
+// ------------------------------------------------------------
+const flareNdcScratch = new THREE.Vector3();
+const flareNearScratch = new THREE.Vector3();
+const flareFarScratch = new THREE.Vector3();
+const flareDirScratch = new THREE.Vector3();
+const flareWorldScratch = new THREE.Vector3();
+let fireworks = [];
+
+function Firework(startX) {
+  this.isDead = false;
+  this.phase = 'rocket';
+  this.timer = 0;
+
+  const rand = Math.random();
+  const baseHue = Math.random();
+  this.colors = [];
+  if (rand < 0.33) {
+    this.colors.push(new THREE.Color().setHSL(baseHue, 1.0, 0.6));
+  } else if (rand < 0.66) {
+    this.colors.push(new THREE.Color().setHSL(baseHue, 1.0, 0.6));
+    this.colors.push(new THREE.Color().setHSL((baseHue + 0.5) % 1.0, 1.0, 0.5));
+  } else {
+    this.colors.push(new THREE.Color().setHSL(baseHue, 1.0, 0.6));
+    this.colors.push(new THREE.Color().setHSL((baseHue + 0.33) % 1.0, 1.0, 0.6));
+    this.colors.push(new THREE.Color().setHSL((baseHue + 0.66) % 1.0, 1.0, 0.6));
+  }
+
+  const burstRand = Math.random();
+  if (burstRand < 0.4) this.burstType = 'sphere';
+  else if (burstRand < 0.65) this.burstType = 'ring';
+  else if (burstRand < 0.85) this.burstType = 'double';
+  else this.burstType = 'streamer';
+
+  this.spriteType = Math.random() < 0.5 ? 'round' : 'star';
+
+  this.pos = new THREE.Vector3(startX, WATER_Y + 6, (Math.random() - 0.5) * 30 - 20);
+  this.vel = new THREE.Vector3(
+    (Math.random() - 0.5) * 0.5,
+    CONFIG.rocketSpeed * (0.9 + Math.random() * 0.3),
+    (Math.random() - 0.5) * 0.5
+  );
+  this.targetY = 46 + Math.random() * 46;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(this.pos.toArray(), 3));
+  this.rocketMesh = new THREE.Points(geo, new THREE.PointsMaterial({
+    size: CONFIG.rocketSize,
+    color: this.colors[0],
+    map: particleSprite,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  }));
+  scene.add(this.rocketMesh);
+}
+
+Firework.prototype.update = function (dt) {
+  if (this.phase === 'rocket') {
+    this.pos.add(this.vel);
+    this.vel.y *= 0.99;
+    this.rocketMesh.geometry.attributes.position.setXYZ(0, this.pos.x, this.pos.y, this.pos.z);
+    this.rocketMesh.geometry.attributes.position.needsUpdate = true;
+    if (this.vel.y < 0.2 || this.pos.y >= this.targetY) this.explode();
+  } else {
+    this.timer += dt;
+
+    if (this.flareGhosts) {
+      this.flareTimer += dt;
+      const flareT = Math.min(1, this.flareTimer / CONFIG.flareDuration);
+      const flareAlpha = (1 - flareT) * (1 - flareT);
+      const ndc = flareNdcScratch.copy(this.pos).project(camera);
+      const behindCamera = ndc.z > 1 || ndc.z < -1 || flareAlpha <= 0.001;
+      for (let g = 0; g < this.flareGhosts.length; g++) {
+        const ghost = this.flareGhosts[g];
+        if (behindCamera) { ghost.obj.visible = false; continue; }
+        ghost.obj.visible = true;
+        const gx = ndc.x * (1 - ghost.distance);
+        const gy = ndc.y * (1 - ghost.distance);
+        const nearP = flareNearScratch.set(gx, gy, -1).unproject(camera);
+        const farP = flareFarScratch.set(gx, gy, 1).unproject(camera);
+        const rayDir = flareDirScratch.subVectors(farP, nearP).normalize();
+        const worldPos = flareWorldScratch.copy(camera.position).addScaledVector(rayDir, FLARE_DEPTH);
+        ghost.obj.position.copy(worldPos);
+        ghost.obj.scale.set(ghost.sizeX, ghost.sizeY, 1);
+        ghost.obj.material.opacity = flareAlpha * ghost.baseOpacity;
+      }
+      if (flareT >= 1) {
+        for (let g2 = 0; g2 < this.flareGhosts.length; g2++) {
+          scene.remove(this.flareGhosts[g2].obj);
+          this.flareGhosts[g2].obj.material.dispose();
+        }
+        this.flareGhosts = null;
+      }
+    }
+
+    const positions = this.sparkSystem.geometry.attributes.position.array;
+    const colors = this.sparkSystem.geometry.attributes.color.array;
+    const rotations = this.sparkSystem.geometry.attributes.aRotation.array;
+    const mirrorPositions = this.mirrorSparkSystem.geometry.attributes.position.array;
+    const mirrorColors = this.mirrorSparkSystem.geometry.attributes.color.array;
+    let aliveCount = 0;
+    const isHovering = this.timer < CONFIG.hoverDuration;
+    const gravityFactor = THREE.MathUtils.smoothstep(this.timer, CONFIG.hoverDuration, CONFIG.hoverDuration + 0.5);
+
+    for (let i = 0; i < this.currentParticleCount; i++) {
+      if (this.lifetimes[i] > 0) {
+        aliveCount++;
+        const i3 = i * 3;
+        positions[i3] += this.velocities[i3];
+        positions[i3 + 1] += this.velocities[i3 + 1];
+        positions[i3 + 2] += this.velocities[i3 + 2];
+        rotations[i] += this.rotSpeeds[i] * dt;
+
+        if (isHovering) {
+          this.velocities[i3] *= CONFIG.friction;
+          this.velocities[i3 + 1] *= CONFIG.friction;
+          this.velocities[i3 + 2] *= CONFIG.friction;
+        } else {
+          this.velocities[i3 + 1] -= CONFIG.gravity * gravityFactor;
+          this.velocities[i3] *= 0.98;
+          this.velocities[i3 + 1] *= 0.98;
+          this.velocities[i3 + 2] *= 0.98;
+          this.lifetimes[i] -= CONFIG.fadeSpeed;
+        }
+
+        const alpha = Math.max(0, this.lifetimes[i]);
+        const coolT = Math.min(1, Math.max(0, (1.0 - alpha) / 0.35));
+        colors[i3] = THREE.MathUtils.lerp(1.0, this.baseColors[i3], coolT) * alpha * 1.5;
+        colors[i3 + 1] = THREE.MathUtils.lerp(1.0, this.baseColors[i3 + 1], coolT) * alpha * 1.5;
+        colors[i3 + 2] = THREE.MathUtils.lerp(1.0, this.baseColors[i3 + 2], coolT) * alpha * 1.5;
+
+        // 수면 반사용 - 같은 파티클을 y만 수면 기준으로 뒤집고 밝기를 낮춰서 그린다
+        mirrorPositions[i3] = positions[i3];
+        mirrorPositions[i3 + 1] = 2 * WATER_Y - positions[i3 + 1];
+        mirrorPositions[i3 + 2] = positions[i3 + 2];
+        mirrorColors[i3] = colors[i3] * 0.4;
+        mirrorColors[i3 + 1] = colors[i3 + 1] * 0.4;
+        mirrorColors[i3 + 2] = colors[i3 + 2] * 0.4;
+      }
+    }
+    this.sparkSystem.geometry.attributes.position.needsUpdate = true;
+    this.sparkSystem.geometry.attributes.color.needsUpdate = true;
+    this.sparkSystem.geometry.attributes.aRotation.needsUpdate = true;
+    this.mirrorSparkSystem.geometry.attributes.position.needsUpdate = true;
+    this.mirrorSparkSystem.geometry.attributes.color.needsUpdate = true;
+    if (aliveCount === 0) this.cleanup();
+  }
+};
+
+Firework.prototype.explode = function () {
+  if (CONFIG.soundEnabled) AudioSys.playDeepExplosion();
+  scene.remove(this.rocketMesh);
+  this.phase = 'explode';
+  this.timer = 0;
+  this.currentParticleCount = CONFIG.particleCount;
+
+  this.flareTimer = 0;
+  const flareColorA = this.colors[0];
+  const flareColorB = this.colors.length > 1 ? this.colors[1] : this.colors[0];
+  const flareWhite = new THREE.Color(1, 1, 1);
+  const flareDefs = [
+    { texture: flareTexStreak, distance: 0.0, sizeX: CONFIG.flareSize * 1.6, sizeY: CONFIG.flareSize * 0.16, color: flareWhite, baseOpacity: 0.5 },
+    { texture: particleSprite, distance: 0.0, sizeX: CONFIG.flareSize * 0.9, sizeY: CONFIG.flareSize * 0.9, color: flareWhite, baseOpacity: 1.0 },
+    { texture: flareTexHex, distance: 0.35, sizeX: CONFIG.flareSize * 0.32, sizeY: CONFIG.flareSize * 0.32, color: flareColorA.clone().lerp(flareWhite, 0.3), baseOpacity: 0.55 },
+    { texture: flareTexRing, distance: 0.65, sizeX: CONFIG.flareSize * 0.5, sizeY: CONFIG.flareSize * 0.5, color: flareColorB.clone().lerp(flareWhite, 0.2), baseOpacity: 0.45 },
+    { texture: flareTexHex, distance: 0.9, sizeX: CONFIG.flareSize * 0.18, sizeY: CONFIG.flareSize * 0.18, color: flareColorA.clone(), baseOpacity: 0.35 },
+    { texture: flareTexHex, distance: 1.15, sizeX: CONFIG.flareSize * 0.24, sizeY: CONFIG.flareSize * 0.24, color: flareColorB.clone().multiplyScalar(0.7), baseOpacity: 0.3 }
+  ];
+  this.flareGhosts = flareDefs.map(function (def) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: def.texture, color: def.color, transparent: true,
+      depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0
+    }));
+    sprite.visible = false;
+    scene.add(sprite);
+    return { obj: sprite, distance: def.distance, sizeX: def.sizeX, sizeY: def.sizeY, baseOpacity: def.baseOpacity };
+  });
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(this.currentParticleCount * 3);
+  const colors = new Float32Array(this.currentParticleCount * 3);
+  const rotations = new Float32Array(this.currentParticleCount);
+  this.baseColors = new Float32Array(this.currentParticleCount * 3);
+  this.velocities = new Float32Array(this.currentParticleCount * 3);
+  this.lifetimes = new Float32Array(this.currentParticleCount);
+  this.rotSpeeds = new Float32Array(this.currentParticleCount);
+
+  const baseSpeed = CONFIG.explosionForce * (0.8 + Math.random() * 0.4);
+
+  const ringNormal = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+  const ringHelper = Math.abs(ringNormal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const ringU = new THREE.Vector3().crossVectors(ringNormal, ringHelper).normalize();
+  const ringV = new THREE.Vector3().crossVectors(ringNormal, ringU).normalize();
+
+  const innerColor = this.colors[0];
+  const outerColor = this.colors.length > 1 ? this.colors[1] : this.colors[0];
+
+  const streamerLineCount = Math.max(16, Math.floor(this.currentParticleCount / 40));
+  const streamerPerLine = Math.ceil(this.currentParticleCount / streamerLineCount);
+
+  for (let i = 0; i < this.currentParticleCount; i++) {
+    const i3 = i * 3;
+    positions[i3] = this.pos.x; positions[i3 + 1] = this.pos.y; positions[i3 + 2] = this.pos.z;
+
+    let dirX, dirY, dirZ, speed, targetColor;
+
+    if (this.burstType === 'ring') {
+      const ringAngle = Math.random() * Math.PI * 2;
+      const thickness = (Math.random() - 0.5) * 0.18;
+      dirX = ringU.x * Math.cos(ringAngle) + ringV.x * Math.sin(ringAngle) + ringNormal.x * thickness;
+      dirY = ringU.y * Math.cos(ringAngle) + ringV.y * Math.sin(ringAngle) + ringNormal.y * thickness;
+      dirZ = ringU.z * Math.cos(ringAngle) + ringV.z * Math.sin(ringAngle) + ringNormal.z * thickness;
+      speed = baseSpeed * (0.9 + Math.random() * 0.2);
+      targetColor = this.colors[Math.floor(Math.random() * this.colors.length)];
+    } else if (this.burstType === 'double') {
+      const theta1 = Math.random() * Math.PI * 2;
+      const phi1 = Math.acos(2 * Math.random() - 1);
+      dirX = Math.sin(phi1) * Math.cos(theta1);
+      dirY = Math.sin(phi1) * Math.sin(theta1);
+      dirZ = Math.cos(phi1);
+      const isInner = i < this.currentParticleCount * 0.4;
+      speed = isInner ? baseSpeed * 0.45 * (0.85 + Math.random() * 0.3) : baseSpeed * (0.85 + Math.random() * 0.3);
+      targetColor = isInner ? innerColor : outerColor;
+    } else if (this.burstType === 'streamer') {
+      const lineIndex = Math.floor(i / streamerPerLine);
+      const posInLine = i % streamerPerLine;
+      const lineSeed = lineIndex * 12.9898;
+      const lineTheta = (Math.sin(lineSeed) * 43758.5453 % 1 + 1) % 1 * Math.PI * 2;
+      const linePhi = Math.acos(2 * ((Math.sin(lineSeed * 1.7) * 12345.6789 % 1 + 1) % 1) - 1);
+      const jitter = 0.03;
+      const theta2 = lineTheta + (Math.random() - 0.5) * jitter;
+      const phi2 = linePhi + (Math.random() - 0.5) * jitter;
+      dirX = Math.sin(phi2) * Math.cos(theta2);
+      dirY = Math.sin(phi2) * Math.sin(theta2);
+      dirZ = Math.cos(phi2);
+      const lineFrac = streamerPerLine > 1 ? posInLine / (streamerPerLine - 1) : 0;
+      speed = baseSpeed * (1.5 - lineFrac * 1.1);
+      targetColor = this.colors[Math.floor(Math.random() * this.colors.length)];
+    } else {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      dirX = Math.sin(phi) * Math.cos(theta);
+      dirY = Math.sin(phi) * Math.sin(theta);
+      dirZ = Math.cos(phi);
+      speed = baseSpeed * (0.8 + Math.random() * 0.4);
+      targetColor = this.colors[Math.floor(Math.random() * this.colors.length)];
+    }
+
+    this.velocities[i3] = dirX * speed;
+    this.velocities[i3 + 1] = dirY * speed;
+    this.velocities[i3 + 2] = dirZ * speed;
+
+    const brightness = 0.5 + Math.random() * 0.8;
+    this.baseColors[i3] = targetColor.r * brightness;
+    this.baseColors[i3 + 1] = targetColor.g * brightness;
+    this.baseColors[i3 + 2] = targetColor.b * brightness;
+
+    colors[i3] = this.baseColors[i3];
+    colors[i3 + 1] = this.baseColors[i3 + 1];
+    colors[i3 + 2] = this.baseColors[i3 + 2];
+
+    this.lifetimes[i] = 1.0;
+    rotations[i] = Math.random() * Math.PI * 2;
+    this.rotSpeeds[i] = (Math.random() - 0.5) * 4.0;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('aRotation', new THREE.BufferAttribute(rotations, 1));
+
+  const sparkUniforms = {
+    uMap: { value: this.spriteType === 'star' ? particleSpriteStar : particleSprite },
+    uSize: { value: CONFIG.particleSize },
+    uScale: { value: sparkScaleValue },
+    uFocus: { value: FOCUS_DIST },
+    uFocusRange: { value: CONFIG.dofFocusRange },
+    uMaxSizeMult: { value: CONFIG.dofMaxSizeMult },
+    uMaxFade: { value: CONFIG.dofMaxFade }
+  };
+  this.sparkSystem = new THREE.Points(geo, new THREE.ShaderMaterial({
+    uniforms: sparkUniforms,
+    vertexShader: SparkShader.vertexShader,
+    fragmentShader: SparkShader.fragmentShader,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  scene.add(this.sparkSystem);
+
+  // 수면 반사용 파티클 시스템 - 위치/색은 매 프레임 update()에서 원본을 y-반전해 복사한다
+  const mirrorGeo = new THREE.BufferGeometry();
+  mirrorGeo.setAttribute('position', new THREE.BufferAttribute(positions.slice(), 3));
+  mirrorGeo.setAttribute('color', new THREE.BufferAttribute(colors.slice(), 3));
+  mirrorGeo.setAttribute('aRotation', new THREE.BufferAttribute(rotations, 1));
+  this.mirrorSparkSystem = new THREE.Points(mirrorGeo, new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: sparkUniforms.uMap, uSize: sparkUniforms.uSize, uScale: sparkUniforms.uScale,
+      uFocus: { value: FOCUS_DIST }, uFocusRange: sparkUniforms.uFocusRange,
+      uMaxSizeMult: sparkUniforms.uMaxSizeMult, uMaxFade: sparkUniforms.uMaxFade
+    },
+    vertexShader: SparkShader.vertexShader,
+    fragmentShader: SparkShader.fragmentShader,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  scene.add(this.mirrorSparkSystem);
+};
+
+Firework.prototype.cleanup = function () {
+  this.isDead = true;
+  if (this.sparkSystem) {
+    scene.remove(this.sparkSystem);
+    this.sparkSystem.geometry.dispose();
+    this.sparkSystem.material.dispose();
+  }
+  if (this.mirrorSparkSystem) {
+    scene.remove(this.mirrorSparkSystem);
+    this.mirrorSparkSystem.geometry.dispose();
+    this.mirrorSparkSystem.material.dispose();
+  }
+  if (this.rocketMesh) {
+    scene.remove(this.rocketMesh);
+    this.rocketMesh.geometry.dispose();
+    this.rocketMesh.material.dispose();
+  }
+  if (this.flareGhosts) {
+    for (let g = 0; g < this.flareGhosts.length; g++) {
+      scene.remove(this.flareGhosts[g].obj);
+      this.flareGhosts[g].obj.material.dispose();
+    }
+    this.flareGhosts = null;
+  }
+};
+
+let lastLaunchTime = 0;
+let nextLaunchDelay = 0;
+function launchFirework() {
+  const burstCount = Math.random() < 0.4 ? 2 : 1; // 가끔 두 발을 동시에 쏘아 그랜드피날레 느낌
+  for (let b = 0; b < burstCount; b++) {
+    const x = (Math.random() - 0.5) * 220;
+    fireworks.push(new Firework(x));
+  }
+}
+function updateQueue(time) {
+  if (time - lastLaunchTime > nextLaunchDelay) {
+    lastLaunchTime = time;
+    nextLaunchDelay = CONFIG.launchInterval + Math.random() * 900;
+    launchFirework();
+  }
+}
+
+function unlockAudioOnFirstInteraction() {
+  window.addEventListener('pointerdown', function handler() {
+    AudioSys.init();
+    window.removeEventListener('pointerdown', handler);
+  }, { passive: true });
+}
+unlockAudioOnFirstInteraction();
+
+// ------------------------------------------------------------
+// 프리셋 - 이 페이지는 조정 가능한 설정이 없어서, "저장"은 이 불꽃놀이 페이지로
+// 연결되는 링크(sceneUrl)를 이름 붙여 즐겨찾기해두는 것과 같다. index.html/ski-resort.html의
+// 프리셋과 로컬 저장소를 공유해서 세 페이지를 오가며 관리할 수 있게 한다.
+// ------------------------------------------------------------
+const PRESETS_KEY = 'interior3dViewer.presets';
+let presets = {};
+try {
+  presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
+} catch (e) { presets = {}; }
+
+function getCurrentConfig() {
+  return { sceneUrl: 'fireworks.html' };
+}
+function encodePreset(cfg) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+}
+function applyConfig(cfg) {
+  if (cfg.sceneUrl) {
+    window.location.href = cfg.sceneUrl;
+    return;
+  }
+  window.location.href = 'index.html?preset=' + encodePreset(cfg);
+}
+function savePresetsToStorage() {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise(function (resolve, reject) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      resolve();
+    } catch (e) { reject(e); }
+  });
+}
+
+let isAdminForGallery = false;
+
+function renderPresetList() {
+  const root = document.getElementById('presetList');
+  root.innerHTML = '';
+  const names = Object.keys(presets);
+  if (names.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'preset-empty';
+    empty.textContent = '저장된 프리셋이 없습니다';
+    root.appendChild(empty);
+    return;
+  }
+  names.forEach(function (name) {
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const label = document.createElement('span');
+    label.className = 'preset-name';
+    label.textContent = name;
+    label.title = name + ' (더블클릭하여 이름 변경)';
+    label.addEventListener('dblclick', function () {
+      const newName = window.prompt('새 이름을 입력하세요:', name);
+      if (newName === null) return;
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === name) return;
+      if (presets[trimmed] && !window.confirm('"' + trimmed + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+      const cfg = presets[name];
+      delete presets[name];
+      presets[trimmed] = cfg;
+      savePresetsToStorage();
+      renderPresetList();
+    });
+    row.appendChild(label);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'preset-btn';
+    applyBtn.type = 'button';
+    applyBtn.textContent = '적용';
+    applyBtn.addEventListener('click', function () { applyConfig(presets[name]); });
+    row.appendChild(applyBtn);
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'preset-btn';
+    shareBtn.type = 'button';
+    shareBtn.textContent = '공유';
+    shareBtn.title = '이 프리셋의 공유 링크를 클립보드에 복사';
+    shareBtn.addEventListener('click', function () {
+      const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?preset=' + encodePreset(presets[name]);
+      copyToClipboard(url).then(function () {
+        shareBtn.textContent = '복사됨!';
+        setTimeout(function () { shareBtn.textContent = '공유'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(shareBtn);
+
+    // OBS 링크 - 공유 링크(항상 index.html 경유)와 달리, sceneUrl 프리셋이면 이
+    // 불꽃놀이 페이지로 바로 연결하고 ?obs=1을 붙여서 OBS 브라우저 소스로 추가하자마자
+    // (window.obsstudio 주입을 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로
+    // 바로 시작하게 한다. 방 설정 프리셋이면 index.html로 보내되 마찬가지로 ?obs=1을 붙인다.
+    const obsBtn = document.createElement('button');
+    obsBtn.className = 'preset-btn';
+    obsBtn.type = 'button';
+    obsBtn.textContent = 'OBS';
+    obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+    obsBtn.addEventListener('click', function () {
+      const dir = location.pathname.replace(/[^/]*$/, '');
+      const url = presets[name].sceneUrl
+        ? location.origin + dir + presets[name].sceneUrl + '?obs=1'
+        : location.origin + dir + 'index.html?preset=' + encodePreset(presets[name]) + '&obs=1';
+      copyToClipboard(url).then(function () {
+        obsBtn.textContent = '복사됨!';
+        setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(obsBtn);
+
+    if (isAdminForGallery) {
+      const publishBtn = document.createElement('button');
+      publishBtn.className = 'preset-btn';
+      publishBtn.type = 'button';
+      publishBtn.textContent = '게시';
+      publishBtn.title = '모두가 볼 수 있는 공개 갤러리에 올리기';
+      publishBtn.addEventListener('click', function () {
+        publishPresetFn({ name: name, config: presets[name] }).then(function () {
+          publishBtn.textContent = '게시됨!';
+          setTimeout(function () { publishBtn.textContent = '게시'; }, 1500);
+        }).catch(function (err) {
+          console.error('갤러리 게시 실패:', err);
+          window.alert('갤러리 게시에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+      row.appendChild(publishBtn);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'preset-btn preset-btn--del';
+    delBtn.type = 'button';
+    delBtn.textContent = '✕';
+    delBtn.title = '삭제';
+    delBtn.addEventListener('click', function () {
+      delete presets[name];
+      savePresetsToStorage();
+      renderPresetList();
+    });
+    row.appendChild(delBtn);
+
+    root.appendChild(row);
+  });
+}
+
+document.getElementById('presetSaveBtn').addEventListener('click', function () {
+  const input = document.getElementById('presetNameInput');
+  let name = input.value.trim();
+  if (!name) name = '프리셋 ' + (Object.keys(presets).length + 1);
+  presets[name] = getCurrentConfig();
+  savePresetsToStorage();
+  renderPresetList();
+  input.value = '';
+});
+document.getElementById('presetNameInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') document.getElementById('presetSaveBtn').click();
+});
+renderPresetList();
+
+// ------------------------------------------------------------
+// 계정 상태 - 익명/Google 로그인 (다른 배경 페이지들과 동일한 세션을 공유)
+// ------------------------------------------------------------
+const authStatusEl = document.getElementById('authStatus');
+const authBtnEl = document.getElementById('authBtn');
+let lastGalleryEntries = null;
+
+function renderGalleryOwnership() {
+  if (lastGalleryEntries) renderGallery(lastGalleryEntries);
+}
+
+function updateAuthUI(detail) {
+  isAdminForGallery = !!(detail && detail.isAdmin);
+  authBtnEl.disabled = false;
+  if (detail && detail.isRealAccount) {
+    authStatusEl.textContent = isAdminForGallery ? '로그인됨 (관리자)' : '로그인됨';
+    authBtnEl.textContent = '로그아웃';
+  } else {
+    authStatusEl.textContent = '익명 사용자';
+    authBtnEl.textContent = 'Google 로그인';
+  }
+  document.getElementById('addSceneLinkBtn').style.display = isAdminForGallery ? '' : 'none';
+  // 일반 유저는 로컬에 프리셋을 저장/관리하는 세션 자체가 필요 없다 - 갤러리에
+  // 이미 게시된 프리셋을 적용/OBS 링크 복사만 하면 된다. 관리자만 이 섹션으로
+  // 새 프리셋을 만들고 게시할 수 있다.
+  document.getElementById('localPresetSection').style.display = isAdminForGallery ? '' : 'none';
+  renderPresetList();
+  renderGalleryOwnership();
+}
+
+document.getElementById('addSceneLinkBtn').addEventListener('click', function () {
+  const name = window.prompt('프리셋 이름을 입력하세요 (예: 기본 프리셋 3):');
+  if (name === null || !name.trim()) return;
+  const url = window.prompt('연결할 배경 페이지 파일명을 입력하세요 (예: index.html):', 'index.html');
+  if (url === null) return;
+  const trimmedUrl = url.trim();
+  if (!/^[a-zA-Z0-9_-]+\.html$/.test(trimmedUrl)) {
+    window.alert('같은 폴더의 html 파일명만 입력할 수 있어요 (예: index.html).');
+    return;
+  }
+  const trimmedName = name.trim();
+  if (presets[trimmedName] && !window.confirm('"' + trimmedName + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+  presets[trimmedName] = { sceneUrl: trimmedUrl };
+  savePresetsToStorage();
+  renderPresetList();
+});
+
+authBtnEl.addEventListener('click', function () {
+  if (firebaseAuthApi.isRealAccount()) firebaseAuthApi.signOut();
+  else firebaseAuthApi.signIn();
+});
+
+onAuthStateChanged(auth, function (user) {
+  currentUser = user;
+  updateAuthUI({
+    user: user,
+    isRealAccount: !!(user && !user.isAnonymous),
+    isAdmin: !!(user && !user.isAnonymous && user.email === ADMIN_EMAIL)
+  });
+  if (!user) {
+    signInAnonymously(auth).catch(function (err) { console.error('익명 로그인 실패:', err); });
+  }
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.ctrlKey && e.key === 'Enter' && !firebaseAuthApi.isRealAccount()) {
+    e.preventDefault();
+    firebaseAuthApi.signIn();
+  }
+});
+
+// ------------------------------------------------------------
+// 공개 갤러리
+// ------------------------------------------------------------
+function renderGallery(entries) {
+  lastGalleryEntries = entries;
+  const root = document.getElementById('galleryList');
+  root.innerHTML = '';
+  const keys = Object.keys(entries);
+  if (keys.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'preset-empty';
+    empty.textContent = '아직 게시된 프리셋이 없습니다';
+    root.appendChild(empty);
+    return;
+  }
+  keys.sort(function (a, b) { return (entries[b].createdAt || 0) - (entries[a].createdAt || 0); });
+  keys.forEach(function (key) {
+    const entry = entries[key];
+    if (!entry || !entry.config) return;
+
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const label = document.createElement('span');
+    label.className = 'preset-name';
+    label.textContent = entry.name || '(이름 없음)';
+    // 이름 변경(더블클릭)은 관리자만 - 서버(updatePreset)도 requireAdmin으로
+    // 검증하지만, 비관리자에겐 애초에 그런 조작이 가능한 것처럼 보이지 않게 한다.
+    if (isAdminForGallery) {
+      label.title = (entry.name || '') + ' (더블클릭하여 이름 변경)';
+      label.style.cursor = 'pointer';
+      label.addEventListener('dblclick', function () {
+        const newName = window.prompt('새 이름을 입력하세요:', entry.name || '');
+        if (newName === null) return;
+        const trimmed = newName.trim();
+        if (!trimmed || trimmed === entry.name) return;
+        window.__firebaseGallery.update(key, trimmed, entry.config).catch(function (err) {
+          console.error('갤러리 이름 변경 실패:', err);
+          window.alert('이름 변경에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+    } else {
+      label.title = entry.name || '';
+    }
+    row.appendChild(label);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'preset-btn';
+    applyBtn.type = 'button';
+    applyBtn.textContent = '적용';
+    applyBtn.addEventListener('click', function () { applyConfig(entry.config); });
+    row.appendChild(applyBtn);
+
+    // OBS 링크 - sceneUrl 프리셋이면 그 배경 페이지로 바로, 방 설정 프리셋이면
+    // index.html로 연결하고 둘 다 ?obs=1을 붙여서 OBS 브라우저 소스로 추가하자마자
+    // (window.obsstudio 주입을 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 시작한다.
+    const obsBtn = document.createElement('button');
+    obsBtn.className = 'preset-btn';
+    obsBtn.type = 'button';
+    obsBtn.textContent = 'OBS';
+    obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+    obsBtn.addEventListener('click', function () {
+      const dir = location.pathname.replace(/[^/]*$/, '');
+      const url = entry.config.sceneUrl
+        ? location.origin + dir + entry.config.sceneUrl + '?obs=1'
+        : location.origin + dir + 'index.html?preset=' + encodePreset(entry.config) + '&obs=1';
+      copyToClipboard(url).then(function () {
+        obsBtn.textContent = '복사됨!';
+        setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(obsBtn);
+
+    if (isAdminForGallery) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'preset-btn preset-btn--del';
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.title = '게시물 삭제';
+      delBtn.addEventListener('click', function () {
+        if (!window.confirm('"' + (entry.name || '') + '" 게시물을 삭제할까요?')) return;
+        deletePresetFn({ id: key }).catch(function (err) {
+          console.error('갤러리 삭제 실패:', err);
+          window.alert('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+      row.appendChild(delBtn);
+    }
+
+    root.appendChild(row);
+  });
+}
+onValue(galleryRef, function (snapshot) {
+  renderGallery(snapshot.val() || {});
+}, function (err) {
+  console.error('presetGallery 읽기 실패:', err);
+  const root = document.getElementById('galleryList');
+  root.innerHTML = '';
+  const errEl = document.createElement('p');
+  errEl.className = 'preset-empty';
+  errEl.textContent = '갤러리를 불러올 수 없습니다 (Firebase 규칙 확인 필요)';
+  root.appendChild(errEl);
+});
+
+// ------------------------------------------------------------
+// 리사이즈 - 16:9 고정, 레터박스 (다른 배경 페이지와 동일한 규칙)
+// ------------------------------------------------------------
+function fitCanvas() {
+  const rect = appEl.getBoundingClientRect();
+  const ww = rect.width, wh = rect.height;
+  let w, h;
+  if (ww / wh > FIXED_ASPECT) { h = wh; w = h * FIXED_ASPECT; }
+  else { w = ww; h = w / FIXED_ASPECT; }
+  const pr = Math.min(window.devicePixelRatio, 2);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  bloomPass.resolution.set(w * pr, h * pr);
+  hBlur.uniforms.h.value = TILT_SHIFT_BLURINESS / w;
+  vBlur.uniforms.v.value = TILT_SHIFT_BLURINESS / h;
+  sparkScaleValue = h * pr * 0.5;
+  for (let i = 0; i < fireworks.length; i++) {
+    if (fireworks[i].sparkSystem) fireworks[i].sparkSystem.material.uniforms.uScale.value = sparkScaleValue;
+    if (fireworks[i].mirrorSparkSystem) fireworks[i].mirrorSparkSystem.material.uniforms.uScale.value = sparkScaleValue;
+  }
+}
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
+
+// ------------------------------------------------------------
+// OBS 감지 - 실제 방송 캡처 중이면 devbar/패널을 숨겨서 화면을 깨끗하게 유지.
+// URL에 ?obs=1이 있어도 동일하게 취급한다("OBS" 프리셋 링크가 붙이는 값 - window.obsstudio
+// 주입 타이밍에 기대지 않고 로드 즉시 꽉 찬 화면으로 시작, 일반 브라우저 탭 미리보기도 가능).
+// ------------------------------------------------------------
+const inOBS = !!window.obsstudio || new URLSearchParams(location.search).get('obs') === '1';
+if (inOBS) {
+  sidePanel.style.display = 'none';
+  document.getElementById('devbar').style.display = 'none';
+  fitCanvas();
+}
+
+// ------------------------------------------------------------
+// 더블클릭으로 전체화면 전환/복귀 (다른 배경 페이지들과 동일한 동작)
+// ------------------------------------------------------------
+canvas.addEventListener('dblclick', function () {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen().catch(function (err) {
+      console.error('전체화면 전환 실패:', err);
+    });
+  }
+});
+
+const devbarEl = document.getElementById('devbar');
+document.addEventListener('fullscreenchange', function () {
+  if (inOBS) return;
+  const fs = !!document.fullscreenElement;
+  sidePanel.style.display = fs ? 'none' : '';
+  devbarEl.style.display = fs ? 'none' : '';
+  fitCanvas();
+});
+
+// ------------------------------------------------------------
+// devbar 자동 스크롤 (넘칠 때만)
+// ------------------------------------------------------------
+(function setupDevbarMarquee() {
+  const viewport = document.getElementById('devbarViewport');
+  const track = document.getElementById('devbarTrack');
+  if (!viewport || !track) return;
+  function rebuild() {
+    track.querySelectorAll('[data-clone]').forEach(function (el) { el.remove(); });
+    track.classList.remove('auto-scroll');
+    track.style.removeProperty('--devbar-duration');
+    if (track.scrollWidth <= viewport.clientWidth) return;
+    const originalWidth = track.scrollWidth;
+    Array.prototype.slice.call(track.children).forEach(function (child) {
+      const clone = child.cloneNode(true);
+      clone.setAttribute('data-clone', 'true');
+      clone.setAttribute('aria-hidden', 'true');
+      clone.setAttribute('tabindex', '-1');
+      track.appendChild(clone);
+    });
+    const duration = Math.max(8, originalWidth / 40);
+    track.style.setProperty('--devbar-duration', duration + 's');
+    track.classList.add('auto-scroll');
+  }
+  rebuild();
+  let resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(rebuild, 200);
+  });
+})();
+
+// ------------------------------------------------------------
+// 패널 드래그 이동 (다른 배경 페이지들과 동일한 방식, 위치도 같은 키로 공유)
+// ------------------------------------------------------------
+const PANEL_POS_KEY = 'interior3dViewer.panelPos';
+let panelDragging = false;
+let panelDragOffsetX = 0, panelDragOffsetY = 0;
+
+function clampPanelPos(left, top) {
+  const rect = sidePanel.getBoundingClientRect();
+  const appRect = appEl.getBoundingClientRect();
+  const margin = 40;
+  const maxLeft = appRect.width - margin;
+  const maxTop = appRect.height - margin;
+  const minLeft = margin - rect.width;
+  return [
+    Math.max(minLeft, Math.min(maxLeft, left)),
+    Math.max(0, Math.min(maxTop, top))
+  ];
+}
+function setPanelPosition(left, top) {
+  sidePanel.style.left = left + 'px';
+  sidePanel.style.top = top + 'px';
+  sidePanel.style.right = 'auto';
+  sidePanel.style.transform = 'none';
+}
+function stopPanelDrag() { panelDragging = false; }
+
+panelHandle.addEventListener('pointerdown', function (e) {
+  panelDragging = true;
+  const rect = sidePanel.getBoundingClientRect();
+  panelDragOffsetX = e.clientX - rect.left;
+  panelDragOffsetY = e.clientY - rect.top;
+  panelHandle.setPointerCapture(e.pointerId);
+});
+panelHandle.addEventListener('pointermove', function (e) {
+  if (!panelDragging) return;
+  if ((e.buttons & 1) === 0) { stopPanelDrag(); return; }
+  const appRect = appEl.getBoundingClientRect();
+  const clamped = clampPanelPos(e.clientX - panelDragOffsetX - appRect.left, e.clientY - panelDragOffsetY - appRect.top);
+  setPanelPosition(clamped[0], clamped[1]);
+});
+panelHandle.addEventListener('pointerup', function (e) {
+  if (!panelDragging) return;
+  stopPanelDrag();
+  const rect = sidePanel.getBoundingClientRect();
+  const appRect = appEl.getBoundingClientRect();
+  localStorage.setItem(PANEL_POS_KEY, JSON.stringify({ left: rect.left - appRect.left, top: rect.top - appRect.top }));
+  try { panelHandle.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+panelHandle.addEventListener('pointercancel', stopPanelDrag);
+
+(function restorePanelPosition() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(PANEL_POS_KEY)); } catch (e) {}
+  if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+    const clamped = clampPanelPos(saved.left, saved.top);
+    setPanelPosition(clamped[0], clamped[1]);
+  }
+})();
+
+window.addEventListener('resize', function () {
+  if (sidePanel.style.left && sidePanel.style.left !== 'auto') {
+    const rect = sidePanel.getBoundingClientRect();
+    const appRect = appEl.getBoundingClientRect();
+    const clamped = clampPanelPos(rect.left - appRect.left, rect.top - appRect.top);
+    setPanelPosition(clamped[0], clamped[1]);
+  }
+});
+
+// ------------------------------------------------------------
+// 핸드헬드 카메라 효과 - fireworks.html 한정 예외(CLAUDE.md 참고). 실제 카메라
+// 이동/조작은 여전히 없고, 기준 위치(CAMERA_POS/CAM_LOOK_TARGET)에서 벗어나지
+// 않는 아주 미세한 절차적 흔들림만 매 프레임 더한다. 정수배가 아닌 주파수의
+// 사인파 여러 개를 합쳐 반복되지 않는 유기적인 떨림을 만들고, 진폭은 화면
+// 프레이밍에 사실상 영향이 없는 수준(월드 단위 0.2 안팎)으로 아주 작게 유지한다.
+// prefers-reduced-motion이면 완전히 끄고 기존처럼 완전 고정 카메라로 둔다.
+const HANDHELD_ENABLED = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const camShakeLookTarget = new THREE.Vector3();
+function handheldNoise(t, freqs, amps) {
+  let v = 0;
+  for (let i = 0; i < freqs.length; i++) v += Math.sin(t * freqs[i] + i * 12.9) * amps[i];
+  return v;
+}
+function applyHandheldShake(t) {
+  const shakeX = handheldNoise(t, [0.53, 1.27, 2.11], [0.18, 0.09, 0.04]);
+  const shakeY = handheldNoise(t + 31.4, [0.61, 1.4, 2.3], [0.14, 0.07, 0.03]);
+  const shakeZ = handheldNoise(t + 77.2, [0.37, 0.9], [0.1, 0.05]);
+  camera.position.set(CAMERA_POS.x + shakeX, CAMERA_POS.y + shakeY, CAMERA_POS.z + shakeZ);
+  const lookX = handheldNoise(t + 5.5, [0.44, 1.1], [1.2, 0.5]);
+  const lookY = handheldNoise(t + 12.2, [0.5, 1.3], [1.0, 0.4]);
+  camShakeLookTarget.set(CAM_LOOK_TARGET.x + lookX, CAM_LOOK_TARGET.y + lookY, CAM_LOOK_TARGET.z);
+  camera.lookAt(camShakeLookTarget);
+}
+
+// ------------------------------------------------------------
+// 렌더 루프 - 카메라는 (핸드헬드 미세 흔들림 제외) 고정, 불꽃만 계속 발사/갱신
+// ------------------------------------------------------------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (HANDHELD_ENABLED) applyHandheldShake(clock.elapsedTime);
+  filmGrainPass.uniforms.uTime.value = clock.elapsedTime;
+  updateQueue(performance.now());
+  for (let i = fireworks.length - 1; i >= 0; i--) {
+    const fw = fireworks[i];
+    fw.update(dt);
+    if (fw.isDead) fireworks.splice(i, 1);
+  }
+  composer.render();
+}
+
+loadingEl.classList.add('hidden');
+animate();
+</script>
+</body>
+</html>

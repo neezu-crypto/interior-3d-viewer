@@ -1,0 +1,460 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "stocks": {
+      ".read": true,
+      "$stockId": {
+        ".write": false
+      }
+    },
+
+    "candlesticks": {
+      "$stockId": {
+        ".read": true,
+        "$ts": {
+          ".write": false
+        }
+      }
+    },
+
+    "sparklines": {
+      "$stockId": {
+        ".read": true,
+        ".write": false
+      }
+    },
+
+    "rankings": {
+      "top5": {
+        ".read": true,
+        ".write": false
+      },
+      "profitEntries": {
+        ".read": true,
+        ".write": false,
+        ".indexOn": ["value"]
+      }
+    },
+
+    "chartBanner": {
+      "$stockId": {
+        ".read": true,
+        ".write": false
+      }
+    },
+
+    "presence": {
+      "users": {
+        ".read": "auth != null",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "!newData.exists() || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber())",
+          "lastSeen": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+
+    "users": {
+      ".read": false,
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
+    "bannerRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "chartBannerRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "cardBannerRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "kakaoLinks": {
+      ".read": false,
+      "$kakaoId": {
+        ".write": false
+      }
+    },
+
+    "cashChargeRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "treasureChestRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "treasureChestOpens": {
+      ".read": false,
+      "$openId": {
+        ".write": false
+      }
+    },
+
+    "pinRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "pinnedStocks": {
+      ".read": true,
+      "$stockId": {
+        ".write": false
+      }
+    },
+
+    "relayRoomRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "relayRooms": {
+      ".read": true,
+      "$streamerId": {
+        ".write": false
+      }
+    },
+
+    "unfreezeDonationRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "listingRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "lastUnfreezeEvent": {
+      ".read": true,
+      ".write": false
+    },
+
+    "maintenance": {
+      ".read": true,
+      ".write": false
+    },
+
+    "announcement": {
+      ".read": true,
+      ".write": false
+    },
+
+    "jackpot": {
+      "state": {
+        ".read": true,
+        ".write": false
+      }
+    },
+
+    "jackpotContributions": {
+      ".read": false,
+      "$uid": {
+        ".write": false
+      }
+    },
+
+    "jackpotDailyMaxDelta": {
+      ".read": false,
+      ".write": false
+    },
+
+    "jackpotLastWin": {
+      ".read": true,
+      ".write": false
+    },
+
+    "stockSimSessions": {
+      ".read": false,
+      "$sessionId": {
+        ".write": false
+      }
+    },
+
+    "lottery": {
+      "pool": {
+        ".read": true,
+        ".write": false
+      }
+    },
+
+    "lotteryPurchases": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "lotteryLastWin": {
+      ".read": true,
+      ".write": false
+    },
+
+    "lotteryTripleSevenLog": {
+      ".read": false,
+      "$logId": {
+        ".write": false
+      }
+    },
+
+    "playTimePurchases": {
+      ".read": false,
+      "$purchaseId": {
+        ".write": false
+      }
+    },
+
+    "streamerVerificationRequests": {
+      ".read": false,
+      "$requestId": {
+        ".write": false
+      }
+    },
+
+    "streamerVerifications": {
+      ".read": true,
+      ".indexOn": ["uid", "soopId", "nickname"],
+      "$id": {
+        ".write": false
+      }
+    },
+
+    "delistedStocksLog": {
+      ".read": false,
+      "$stockId": {
+        ".write": false
+      }
+    },
+
+    "bettingMarket": {
+      "markets": {
+        ".read": "auth != null",
+        ".indexOn": ["status"],
+        "$marketId": { ".write": false }
+      },
+
+      "bets": {
+        "$marketId": {
+          "$betId": {
+            ".read": "auth != null && data.child('uid').val() === auth.uid",
+            ".write": false
+          }
+        }
+      },
+
+      "wallets": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
+
+      "walletLedger": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$entryId": { ".write": false }
+        }
+      },
+
+      "exchanges": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$exchangeId": { ".write": false }
+        }
+      },
+
+      "userBets": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
+
+      "reserveFund": {
+        ".read": false,
+        ".write": false
+      },
+
+      "jackpot": {
+        ".read": "auth != null",
+        ".write": false
+      },
+
+      "jackpotWins": {
+        ".read": "auth != null",
+        ".indexOn": ["at"],
+        "$winId": { ".write": false }
+      },
+
+      "likes": {
+        "$marketId": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      },
+
+      "chestPurchaseRequests": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$requestId": { ".write": false }
+      },
+
+      "ownedChests": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
+
+      "chestOpenLog": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$logId": { ".write": false }
+      },
+
+      "streamerRequests": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$requestId": { ".write": false }
+      },
+
+      "promotedStreamers": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$entryId": { ".write": false }
+      },
+
+      "bannedAccounts": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$uid": { ".write": false }
+      },
+
+      "verifyRequests": {
+        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        "$pushId": { ".write": false }
+      },
+
+      "verifiedStreamerUids": {
+        ".read": false,
+        "$uid": { ".write": false }
+      },
+
+      "marketReports": {
+        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        "$reportId": { ".write": false }
+      },
+
+      "marketReportMarks": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$marketId": { ".write": false }
+        }
+      },
+
+      "nicknameReports": {
+        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        "$reportId": { ".write": false }
+      },
+
+      "blockedNicknames": {
+        ".read": "auth != null",
+        "$targetId": { ".write": false }
+      },
+
+      "profiles": {
+        ".read": "auth != null",
+        ".indexOn": ["nickname"],
+        "$uid": { ".write": false }
+      },
+
+      "auditLog": {
+        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        "$entryId": { ".write": false }
+      },
+
+      "adminChat": {
+        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        "$messageId": { ".write": false }
+      },
+
+      "rankings": {
+        ".read": "auth != null",
+        ".write": false
+      },
+
+      "ownedSkins": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$skinId": { ".write": false }
+        }
+      },
+
+      "equippedSkin": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
+
+      "skinPurchases": {
+        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        "$entryId": { ".write": false }
+      }
+    },
+
+    "presetGallery": {
+      ".read": true,
+      ".indexOn": ["ownerUid"],
+      "$presetId": {
+        ".write": false
+      }
+    },
+
+    "presetMergeTickets": {
+      ".read": false,
+      "$ticketId": {
+        ".write": false
+      }
+    },
+
+    "presetMergeFailures": {
+      ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+      "$failureId": {
+        ".write": false
+      }
+    }
+  }
+}

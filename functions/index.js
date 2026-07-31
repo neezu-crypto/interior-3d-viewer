@@ -1,0 +1,252 @@
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { initializeApp } = require('firebase-admin/app');
+const { getDatabase } = require('firebase-admin/database');
+const crypto = require('crypto');
+
+initializeApp();
+
+const MAX_NAME_LEN = 40;
+const MAX_CONFIG_JSON_LEN = 20000;
+const ALLOWED_CONFIG_KEYS = [
+  'wallStyleId', 'moldingStyleId', 'floorStyleId',
+  'furnitureState', 'furniturePositions', 'furnitureRotations',
+  'zoomLevel', 'adjust', 'timeOfDay',
+  'sceneUrl' // 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는 프리셋용
+];
+
+// sceneUrl은 임의 외부 주소로 리다이렉트되지 않도록 "같은 폴더의 html 파일명" 형태만 허용
+function assertSafeSceneUrl(config) {
+  if ('sceneUrl' in config) {
+    if (typeof config.sceneUrl !== 'string' || !/^[a-zA-Z0-9_-]+\.html$/.test(config.sceneUrl)) {
+      throw new HttpsError('invalid-argument', 'sceneUrl은 같은 폴더의 html 파일명만 허용됩니다.');
+    }
+  }
+}
+const MERGE_TICKET_TTL_MS = 10 * 60 * 1000;
+const ADMIN_EMAIL = 'skftodwocks2@gmail.com';
+
+// uid 위변조 검증 원칙 - 프리셋 소유자 uid는 클라이언트가 보낸 값을 절대 신뢰하지 않고
+// 항상 request.auth.uid에서만 가져온다 (StreamBet-Market functions/src/lib/auth.js와 동일 원칙).
+function requireAuth(request) {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+  }
+  return request.auth.uid;
+}
+
+// 익명 계정도 프리셋 게시는 그대로 허용하지만(기기별 영속 uid로 소유권은 확인됨),
+// 추후 유료 프리셋 판매 등 재화가 걸리는 기능은 이 값으로 실계정만 허용하도록 확장한다.
+function isRealAccount(request) {
+  const provider = request.auth && request.auth.token && request.auth.token.firebase && request.auth.token.firebase.sign_in_provider;
+  return provider !== 'anonymous';
+}
+
+// 공개 갤러리는 지금은 관리자가 큐레이션하는 공식 프리셋 목록 - 게시/수정/삭제는 관리자만
+// 가능하고, 일반 사용자(익명 포함)는 읽기(적용)만 할 수 있다. email 클레임은 익명 계정엔
+// 아예 없으므로 이 체크는 자연히 실계정(Google) 로그인 + 그 이메일 일치를 함께 요구한다.
+function requireAdmin(request) {
+  const uid = requireAuth(request);
+  const email = request.auth.token && request.auth.token.email;
+  if (email !== ADMIN_EMAIL) {
+    throw new HttpsError('permission-denied', '관리자만 수행할 수 있습니다.');
+  }
+  return uid;
+}
+
+// interior-3d-viewer 프리셋 갤러리 전용 함수. presetgallery 코드베이스로 분리되어 있어서
+// 이 프로젝트의 다른 서비스(default 코드베이스) 함수들과는 완전히 독립적으로 배포/관리됨.
+exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
+  const uid = requireAdmin(request);
+  const data = request.data || {};
+  const rawName = data.name;
+  const rawConfig = data.config;
+
+  if (typeof rawName !== 'string' || !rawName.trim()) {
+    throw new HttpsError('invalid-argument', '프리셋 이름이 필요합니다.');
+  }
+  if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+    throw new HttpsError('invalid-argument', '설정 데이터가 올바르지 않습니다.');
+  }
+
+  const name = rawName.trim().slice(0, MAX_NAME_LEN);
+
+  // 예상된 필드만 복사해서 저장 (악의적이거나 예상치 못한 필드 주입 방지)
+  const config = {};
+  ALLOWED_CONFIG_KEYS.forEach(function (key) {
+    if (key in rawConfig) config[key] = rawConfig[key];
+  });
+  assertSafeSceneUrl(config);
+
+  if (JSON.stringify(config).length > MAX_CONFIG_JSON_LEN) {
+    throw new HttpsError('invalid-argument', '설정 데이터가 너무 큽니다.');
+  }
+
+  const db = getDatabase();
+  const newRef = db.ref('presetGallery').push();
+  await newRef.set({
+    name: name,
+    config: config,
+    ownerUid: uid,
+    ownerIsRealAccount: isRealAccount(request),
+    createdAt: Date.now()
+  });
+
+  return { id: newRef.key };
+});
+
+// 이미 게시된 프리셋의 이름/설정을 그대로 덮어쓴다 (관리자 전용) - id/게시자/게시일은 유지하고
+// config(및 선택적으로 name)만 교체, updatedAt만 새로 기록한다.
+exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
+  requireAdmin(request);
+  const data = request.data || {};
+  const id = data.id;
+  const rawName = data.name;
+  const rawConfig = data.config;
+
+  if (typeof id !== 'string' || !id) {
+    throw new HttpsError('invalid-argument', '수정할 프리셋 id가 필요합니다.');
+  }
+  if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+    throw new HttpsError('invalid-argument', '설정 데이터가 올바르지 않습니다.');
+  }
+
+  const db = getDatabase();
+  const nodeRef = db.ref('presetGallery/' + id);
+  const snap = await nodeRef.get();
+  if (!snap.exists()) {
+    throw new HttpsError('not-found', '존재하지 않는 프리셋입니다.');
+  }
+
+  const config = {};
+  ALLOWED_CONFIG_KEYS.forEach(function (key) {
+    if (key in rawConfig) config[key] = rawConfig[key];
+  });
+  assertSafeSceneUrl(config);
+  if (JSON.stringify(config).length > MAX_CONFIG_JSON_LEN) {
+    throw new HttpsError('invalid-argument', '설정 데이터가 너무 큽니다.');
+  }
+
+  const updates = { config: config, updatedAt: Date.now() };
+  if (typeof rawName === 'string' && rawName.trim()) {
+    updates.name = rawName.trim().slice(0, MAX_NAME_LEN);
+  }
+
+  await nodeRef.update(updates);
+  return { ok: true };
+});
+
+// 게시가 관리자 전용으로 바뀌었으므로 삭제도 소유자(ownerUid) 대신 관리자 여부로만 판별한다.
+exports.deletePreset = onCall({ region: 'us-central1' }, async (request) => {
+  requireAdmin(request);
+  const id = request.data && request.data.id;
+  if (typeof id !== 'string' || !id) {
+    throw new HttpsError('invalid-argument', '삭제할 프리셋 id가 필요합니다.');
+  }
+
+  const db = getDatabase();
+  const nodeRef = db.ref('presetGallery/' + id);
+  const snap = await nodeRef.get();
+  if (!snap.exists()) {
+    throw new HttpsError('not-found', '이미 삭제된 프리셋입니다.');
+  }
+
+  await nodeRef.remove();
+  return { ok: true };
+});
+
+// 익명 계정으로 Google 로그인을 시도했는데 그 Google 계정이 이미 다른 uid로 가입돼 있는 경우
+// (linkWithPopup이 auth/credential-already-in-use로 실패하는 경우), 클라이언트는 결국
+// signInWithCredential로 그 "기존" 계정으로 전환하게 된다 - uid가 바뀌므로 그 사이 익명 uid로
+// 게시했던 프리셋의 ownerUid를 새 uid로 옮겨줘야 소유권을 잃지 않는다.
+//
+// 이때 "옮길 대상 uid(oldUid)"를 클라이언트가 임의로 보낸 값으로 신뢰하면 안 된다 - presetGallery는
+// 공개 읽기라 ownerUid가 누구에게나 보이므로, 그걸 그대로 신뢰하면 제3자가 "내가 이 익명 uid였다"고
+// 거짓 주장해서 남의 프리셋 소유권을 가로챌 수 있다. 그래서 실제로 그 익명 uid로 인증된 시점(=
+// requireAuth로 검증 가능한 유일한 시점)에 미리 발급한 1회용 티켓으로만 대상 uid를 확인한다.
+exports.requestPresetMergeTicket = onCall({ region: 'us-central1' }, async (request) => {
+  const uid = requireAuth(request);
+  const db = getDatabase();
+  const ticket = crypto.randomBytes(24).toString('hex');
+  await db.ref('presetMergeTickets/' + ticket).set({ uid: uid, createdAt: Date.now() });
+  return { ticket: ticket };
+});
+
+// 소유권 이전이 자동으로 안 끝난 경우(티켓 만료/분실, 갱신 도중 오류 등) 관리자가 나중에
+// 터미널(firebase database:get/update)로 수동 처리할 수 있도록 남기는 감사 로그.
+// Cloud Functions 로그(console.error, firebase functions:log로 조회)와 RTDB
+// presetMergeFailures 노드(firebase database:get으로 직접 조회) 두 곳에 남긴다.
+async function logMergeFailure(db, info) {
+  console.error('[presetMerge] 자동 이전 실패 - 관리자 수동 확인 필요:', JSON.stringify(info));
+  try {
+    await db.ref('presetMergeFailures').push({
+      oldUid: info.oldUid || null,
+      newUid: info.newUid || null,
+      ticket: info.ticket || null,
+      reason: info.reason,
+      detail: info.detail || null,
+      verified: !!info.verified, // 유효한 티켓으로 확인된 oldUid인지 여부. false면 클라이언트 자체 신고(미검증) - 수동 이전 전 반드시 별도 확인 필요
+      createdAt: Date.now()
+    });
+  } catch (logErr) {
+    console.error('[presetMerge] 실패 로그 기록 자체가 실패함:', logErr);
+  }
+}
+
+exports.claimPresetMerge = onCall({ region: 'us-central1' }, async (request) => {
+  const newUid = requireAuth(request);
+  const ticket = request.data && request.data.ticket;
+  if (typeof ticket !== 'string' || !ticket) {
+    throw new HttpsError('invalid-argument', '병합 티켓이 필요합니다.');
+  }
+
+  const db = getDatabase();
+  const ticketRef = db.ref('presetMergeTickets/' + ticket);
+  const ticketSnap = await ticketRef.get();
+  if (!ticketSnap.exists()) {
+    await logMergeFailure(db, { newUid: newUid, ticket: ticket, reason: 'ticket-not-found', verified: false });
+    throw new HttpsError('not-found', '유효하지 않거나 이미 사용된 티켓입니다.');
+  }
+  const ticketData = ticketSnap.val();
+  await ticketRef.remove(); // 1회용 - 결과와 무관하게 즉시 폐기해서 재사용을 막는다
+
+  if (Date.now() - (ticketData.createdAt || 0) > MERGE_TICKET_TTL_MS) {
+    await logMergeFailure(db, { oldUid: ticketData.uid, newUid: newUid, ticket: ticket, reason: 'ticket-expired', verified: true });
+    throw new HttpsError('deadline-exceeded', '티켓이 만료되었습니다. 다시 로그인해 주세요.');
+  }
+
+  const oldUid = ticketData.uid;
+  if (!oldUid || oldUid === newUid) {
+    return { migrated: 0 };
+  }
+
+  try {
+    const gallerySnap = await db.ref('presetGallery').orderByChild('ownerUid').equalTo(oldUid).get();
+    const updates = {};
+    gallerySnap.forEach(function (child) {
+      updates[child.key + '/ownerUid'] = newUid;
+    });
+    if (Object.keys(updates).length > 0) {
+      await db.ref('presetGallery').update(updates);
+    }
+    return { migrated: Object.keys(updates).length };
+  } catch (err) {
+    // 티켓은 이미 폐기됐으므로 클라이언트가 재시도해도 다시 성공할 수 없다 - 반드시 로그로 남겨야
+    // 관리자가 presetGallery에서 ownerUid === oldUid인 항목을 찾아 newUid로 수동 이전할 수 있다.
+    await logMergeFailure(db, { oldUid: oldUid, newUid: newUid, ticket: ticket, reason: 'update-failed', detail: String(err && err.message || err), verified: true });
+    throw new HttpsError('internal', '소유권 이전 중 오류가 발생했습니다. 관리자에게 문의해 주세요.');
+  }
+});
+
+// 티켓 발급(requestPresetMergeTicket) 자체가 실패해 claimPresetMerge를 호출할 수 없었던 경우를
+// 위한 최후의 기록용 엔드포인트 - 클라이언트가 보낸 oldUidHint는 티켓으로 검증된 값이 아니므로
+// (verified:false) 관리자가 실제로 그 uid가 맞는지 확인 후 수동으로 이전해야 한다.
+exports.reportPresetMergeFailure = onCall({ region: 'us-central1' }, async (request) => {
+  const newUid = requireAuth(request);
+  const data = request.data || {};
+  const oldUidHint = typeof data.oldUidHint === 'string' ? data.oldUidHint.slice(0, 128) : null;
+  const reason = typeof data.reason === 'string' ? data.reason.slice(0, 64) : 'client-reported';
+
+  const db = getDatabase();
+  await logMergeFailure(db, { oldUid: oldUidHint, newUid: newUid, reason: reason, verified: false });
+  return { ok: true };
+});
