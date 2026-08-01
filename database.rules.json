@@ -461,6 +461,10 @@
       "streamerPermissions": {
         ".read": false,
         ".write": false
+      },
+      "adminUids": {
+        ".read": false,
+        ".write": false
       }
     },
 
