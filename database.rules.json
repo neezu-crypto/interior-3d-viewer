@@ -467,6 +467,11 @@
     "adminAuditLog": {
       ".read": false,
       ".write": false
+    },
+
+    "seriesConfig": {
+      ".read": false,
+      ".write": false
     }
   }
 }
