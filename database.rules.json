@@ -462,6 +462,11 @@
         ".read": false,
         ".write": false
       }
+    },
+
+    "adminAuditLog": {
+      ".read": false,
+      ".write": false
     }
   }
 }
