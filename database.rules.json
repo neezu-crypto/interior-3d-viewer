@@ -469,6 +469,10 @@
       "killswitchLastRun": {
         ".read": false,
         ".write": false
+      },
+      "promotedContent": {
+        ".read": false,
+        ".write": false
       }
     },
 
