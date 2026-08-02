@@ -285,10 +285,10 @@
       <div class="devbar-track" id="devbarTrack">
         <span class="devbar-label">스트리머 배경시장 · BY 오목지면시그</span>
         <a class="dev-game-link" href="https://www.sooplive.com/station/skftodwocks2" target="_blank" rel="noopener noreferrer">방송국</a>
-        <a class="dev-game-link" href="https://neezu-crypto.github.io/soop-stock-market/index.html" target="_blank" rel="noopener noreferrer">스트리머 주식시장</a>
-        <a class="dev-game-link" href="https://neezu-crypto.github.io/dont-click-ads/" target="_blank" rel="noopener noreferrer">절대 광고를 클릭하지 마</a>
-        <a class="dev-game-link" href="https://neezu-crypto.github.io/midnight-mart-run/" target="_blank" rel="noopener noreferrer">미트나잇 마트런</a>
-        <a class="dev-game-link" href="https://neezu-crypto.github.io/StreamBet-Market/" target="_blank" rel="noopener noreferrer">스트리머 배팅시장</a>
+        <a class="dev-game-link" data-game-id="stockMarket" href="https://neezu-crypto.github.io/soop-stock-market/index.html" target="_blank" rel="noopener noreferrer">스트리머 주식시장</a>
+        <a class="dev-game-link" data-game-id="dontClickAds" href="https://neezu-crypto.github.io/dont-click-ads/" target="_blank" rel="noopener noreferrer">절대 광고를 클릭하지 마</a>
+        <a class="dev-game-link" data-game-id="midnightMartRun" href="https://neezu-crypto.github.io/midnight-mart-run/" target="_blank" rel="noopener noreferrer">미트나잇 마트런</a>
+        <a class="dev-game-link" data-game-id="bettingMarket" href="https://neezu-crypto.github.io/StreamBet-Market/" target="_blank" rel="noopener noreferrer">스트리머 배팅시장</a>
       </div>
     </div>
   </div>
@@ -337,7 +337,7 @@
   // Firebase RTDB - 공개 프리셋 갤러리용. 모듈 스크립트라 아래 일반 스크립트보다 실행이 늦어질 수 있어서
   // window.__firebaseGallery 준비되면 'firebase-gallery-ready' 이벤트로 알림
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+  import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js";
   import {
     getAuth, GoogleAuthProvider, signInAnonymously, signInWithPopup, signInWithCredential,
@@ -357,6 +357,40 @@
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const galleryRef = ref(db, 'presetGallery');
+
+  // 08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
+  // 하드코딩된 링크를 대체한다. 노드가 비어있거나 조회 실패 시 기존 하드코딩된
+  // data-game-id 링크를 그대로 둔다(devbar가 통째로 사라지는 사고 방지) — "방송국"
+  // 링크는 devbarLinks 대상이 아니라 항상 하드코딩 그대로 유지된다.
+  (async function () {
+    const SELF_GAME_ID = 'backgroundMarket';
+    try {
+      const snap = await get(ref(db, 'devbarLinks'));
+      const data = snap.val();
+      if (!data) return;
+      const links = Object.keys(data)
+        .filter(function (id) { return id !== SELF_GAME_ID && data[id] && data[id].url; })
+        .map(function (id) { return Object.assign({ id: id }, data[id]); })
+        .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+      if (!links.length) return;
+      const track = document.getElementById('devbarTrack');
+      if (!track) return;
+      track.querySelectorAll('a[data-game-id]').forEach(function (el) { el.remove(); });
+      links.forEach(function (link) {
+        const a = document.createElement('a');
+        a.className = 'dev-game-link';
+        a.dataset.gameId = link.id;
+        a.href = link.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = link.label;
+        track.appendChild(a);
+      });
+      window.dispatchEvent(new Event('resize')); // 마퀴 재계산 트리거
+    } catch (e) {
+      console.error('devbar 링크 갱신 실패(기존 링크 유지):', e);
+    }
+  })();
   const functions = getFunctions(app, 'us-central1');
   const publishPresetFn = httpsCallable(functions, 'publishPreset');
   const updatePresetFn = httpsCallable(functions, 'updatePreset');

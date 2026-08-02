@@ -482,6 +482,13 @@
       ".write": false
     },
 
+    "devbarLinks": {
+      ".read": true,
+      "$gameId": {
+        ".write": false
+      }
+    },
+
     "analytics": {
       "presenceHourly": {
         ".read": false,
