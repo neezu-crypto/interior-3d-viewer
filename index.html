@@ -398,6 +398,11 @@
   const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
   const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
   const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+  // 통합 관리 센터에서 배경시장 갤러리 통계(적용/OBS 링크 횟수)를 보여주기 위한
+  // 집계용 - 클릭한 사람에게 결과를 보여줄 필요가 없어 실패해도 조용히 무시한다
+  // (통계 갱신 실패로 실제 적용·복사 동작 자체를 막으면 안 됨).
+  const incrementPresetApplyCountFn = httpsCallable(functions, 'incrementPresetApplyCount');
+  const incrementPresetObsLinkCountFn = httpsCallable(functions, 'incrementPresetObsLinkCount');
   // 09번/13번 — UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐(실제 권한은
   // 항상 서버가 검증). adminCenter/adminUids는 .read:false라 클라이언트가 직접 못
   // 읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
@@ -1911,6 +1916,7 @@
       applyBtn.type = 'button';
       applyBtn.textContent = '적용';
       applyBtn.addEventListener('click', function () {
+        incrementPresetApplyCountFn({ presetId: key }).catch(function () {}); // 통계용, 실패해도 무시
         // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는
         // 프리셋 - sceneUrl이 있으면 방 설정을 적용하는 대신 그 페이지로 이동한다
         if (entry.config.sceneUrl) {
@@ -1930,6 +1936,7 @@
       obsBtn.textContent = 'OBS';
       obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
       obsBtn.addEventListener('click', function () {
+        incrementPresetObsLinkCountFn({ presetId: key }).catch(function () {}); // 통계용, 실패해도 무시
         const dir = location.pathname.replace(/[^/]*$/, '');
         const url = entry.config.sceneUrl
           ? location.origin + dir + entry.config.sceneUrl + '?obs=1'

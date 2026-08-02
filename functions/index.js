@@ -1,6 +1,6 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
-const { getDatabase } = require('firebase-admin/database');
+const { getDatabase, ServerValue } = require('firebase-admin/database');
 const crypto = require('crypto');
 
 initializeApp();
@@ -325,4 +325,36 @@ exports.resolvePresetMergeFailure = onCall({ region: 'us-central1' }, async (req
   updates['presetMergeFailures/' + entryId] = null;
   await db.ref().update(updates);
   return { ok: true, migrated: Object.keys(updates).length - 1 };
+});
+
+// 배경시장 갤러리 통계 — 공개 갤러리 프리셋별 "적용"/"OBS 링크 복사" 클릭 횟수를
+// 집계한다. 결제·소유권과 무관한 단순 사용량 카운터라 로그인한 누구나(익명 포함)
+// 호출 가능하고, presetGallery/{id}/stats에 얹는다 - updatePreset은 .update()로
+// config/name/updatedAt만 건드리므로 이 stats 필드는 수정·게시로 지워지지 않는다
+// (deletePreset으로 프리셋 자체가 삭제될 때만 함께 사라짐, 이건 의도된 동작).
+function assertPresetExists(db, presetId) {
+  if (typeof presetId !== 'string' || !presetId) {
+    throw new HttpsError('invalid-argument', 'presetId가 필요합니다.');
+  }
+  return db.ref('presetGallery/' + presetId).get().then(function (snap) {
+    if (!snap.exists()) throw new HttpsError('not-found', '존재하지 않는 프리셋입니다.');
+  });
+}
+
+exports.incrementPresetApplyCount = onCall({ region: 'us-central1' }, async (request) => {
+  requireAuth(request);
+  const presetId = request.data && request.data.presetId;
+  const db = getDatabase();
+  await assertPresetExists(db, presetId);
+  await db.ref('presetGallery/' + presetId + '/stats/applyCount').set(ServerValue.increment(1));
+  return { ok: true };
+});
+
+exports.incrementPresetObsLinkCount = onCall({ region: 'us-central1' }, async (request) => {
+  requireAuth(request);
+  const presetId = request.data && request.data.presetId;
+  const db = getDatabase();
+  await assertPresetExists(db, presetId);
+  await db.ref('presetGallery/' + presetId + '/stats/obsLinkCount').set(ServerValue.increment(1));
+  return { ok: true };
 });
