@@ -276,3 +276,53 @@ exports.galleryWhoAmI = onCall({ region: 'us-central1' }, async (request) => {
   const email = request.auth.token && request.auth.token.email;
   return { isAdmin: email === ADMIN_EMAIL };
 });
+
+// 13번 — 프리셋 소유권 병합 실패 조회/해결. 지금까지 이 노드를 처리하는 방법은
+// 관리자가 firebase database:get/update로 CLI에서 직접 만지는 것뿐이었다(이
+// 시리즈에서 유일한 사각지대). 이 두 함수가 그 CLI 수작업을 대체한다.
+exports.listPresetMergeFailures = onCall({ region: 'us-central1' }, async (request) => {
+  await requireAdmin(request);
+  const db = getDatabase();
+  const snap = await db.ref('presetMergeFailures').get();
+  const data = snap.val() || {};
+  const entries = Object.keys(data).map(function (id) {
+    return Object.assign({ id: id }, data[id]);
+  }).sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+  return { entries: entries };
+});
+
+// action: 'transfer'(oldUid의 프리셋 소유권을 newUid로 재이전 — claimPresetMerge와
+// 동일한 로직) 또는 'dismiss'(잘못된 신고 등으로 판단해 그냥 로그만 제거).
+exports.resolvePresetMergeFailure = onCall({ region: 'us-central1' }, async (request) => {
+  await requireAdmin(request);
+  const data = request.data || {};
+  const entryId = data.entryId;
+  const action = data.action;
+  if (!entryId) throw new HttpsError('invalid-argument', 'entryId가 필요합니다.');
+  if (action !== 'transfer' && action !== 'dismiss') {
+    throw new HttpsError('invalid-argument', 'action은 transfer 또는 dismiss여야 합니다.');
+  }
+
+  const db = getDatabase();
+  const entrySnap = await db.ref('presetMergeFailures/' + entryId).get();
+  if (!entrySnap.exists()) throw new HttpsError('not-found', '이미 처리됐거나 존재하지 않는 항목입니다.');
+  const entry = entrySnap.val();
+
+  if (action === 'dismiss') {
+    await db.ref('presetMergeFailures/' + entryId).remove();
+    return { ok: true, migrated: 0 };
+  }
+
+  const oldUid = entry.oldUid;
+  const newUid = entry.newUid;
+  if (!oldUid || !newUid) {
+    throw new HttpsError('failed-precondition', '이전할 uid 정보가 부족합니다(oldUid/newUid 확인 필요) — dismiss로 처리하거나 수동으로 확인해 주세요.');
+  }
+
+  const gallerySnap = await db.ref('presetGallery').orderByChild('ownerUid').equalTo(oldUid).get();
+  const updates = {};
+  gallerySnap.forEach(function (child) { updates[child.key + '/ownerUid'] = newUid; });
+  updates['presetMergeFailures/' + entryId] = null;
+  await db.ref().update(updates);
+  return { ok: true, migrated: Object.keys(updates).length - 1 };
+});

@@ -70,14 +70,14 @@
     },
 
     "bannerRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
     },
 
     "chartBannerRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
@@ -98,14 +98,14 @@
     },
 
     "cashChargeRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
     },
 
     "treasureChestRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
@@ -119,7 +119,7 @@
     },
 
     "pinRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
@@ -133,7 +133,7 @@
     },
 
     "relayRoomRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
@@ -147,14 +147,14 @@
     },
 
     "unfreezeDonationRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
     },
 
     "listingRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
@@ -240,7 +240,7 @@
     },
 
     "streamerVerificationRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
