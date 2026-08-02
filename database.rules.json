@@ -331,7 +331,7 @@
       },
 
       "chestPurchaseRequests": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$requestId": { ".write": false }
       },
 
@@ -343,27 +343,27 @@
       },
 
       "chestOpenLog": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$logId": { ".write": false }
       },
 
       "streamerRequests": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$requestId": { ".write": false }
       },
 
       "promotedStreamers": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$entryId": { ".write": false }
       },
 
       "bannedAccounts": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$uid": { ".write": false }
       },
 
       "verifyRequests": {
-        ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$pushId": { ".write": false }
       },
 
@@ -373,7 +373,7 @@
       },
 
       "marketReports": {
-        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        ".read": "auth != null && (root.child('adminCenter/adminUids').child(auth.uid).exists() || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
         "$reportId": { ".write": false }
       },
 
@@ -385,7 +385,7 @@
       },
 
       "nicknameReports": {
-        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        ".read": "auth != null && (root.child('adminCenter/adminUids').child(auth.uid).exists() || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
         "$reportId": { ".write": false }
       },
 
@@ -401,12 +401,12 @@
       },
 
       "auditLog": {
-        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        ".read": "auth != null && (root.child('adminCenter/adminUids').child(auth.uid).exists() || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
         "$entryId": { ".write": false }
       },
 
       "adminChat": {
-        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        ".read": "auth != null && (root.child('adminCenter/adminUids').child(auth.uid).exists() || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
         "$messageId": { ".write": false }
       },
 
@@ -430,7 +430,7 @@
       },
 
       "skinPurchases": {
-        ".read": "auth != null && (auth.token.email === 'skftodwocks2@gmail.com' || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
+        ".read": "auth != null && (root.child('adminCenter/adminUids').child(auth.uid).exists() || root.child('bettingMarket/verifiedStreamerUids').child(auth.uid).exists())",
         "$entryId": { ".write": false }
       }
     },
@@ -451,7 +451,7 @@
     },
 
     "presetMergeFailures": {
-      ".read": "auth != null && auth.token.email === 'skftodwocks2@gmail.com'",
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$failureId": {
         ".write": false
       }
