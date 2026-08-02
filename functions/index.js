@@ -41,22 +41,34 @@ function isRealAccount(request) {
   return provider !== 'anonymous';
 }
 
+// 09번 마이그레이션 — 관리자 판별을 이메일 문자열 비교에서 공유
+// adminCenter/adminUids uid 조회로 옮긴다(StreamBet-Market·soop-stock-market·
+// admin-center와 동일 전환 방식). uid 미등록 시에만 이메일로 폴백하고,
+// 폴백이 쓰이면 로그를 남긴다.
+async function isAdminUid(uid) {
+  const db = getDatabase();
+  const snap = await db.ref('adminCenter/adminUids/' + uid).get();
+  return snap.val() === true;
+}
+
 // 공개 갤러리는 지금은 관리자가 큐레이션하는 공식 프리셋 목록 - 게시/수정/삭제는 관리자만
 // 가능하고, 일반 사용자(익명 포함)는 읽기(적용)만 할 수 있다. email 클레임은 익명 계정엔
 // 아예 없으므로 이 체크는 자연히 실계정(Google) 로그인 + 그 이메일 일치를 함께 요구한다.
-function requireAdmin(request) {
+async function requireAdmin(request) {
   const uid = requireAuth(request);
+  if (await isAdminUid(uid)) return uid;
   const email = request.auth.token && request.auth.token.email;
-  if (email !== ADMIN_EMAIL) {
-    throw new HttpsError('permission-denied', '관리자만 수행할 수 있습니다.');
+  if (email === ADMIN_EMAIL) {
+    console.warn('관리자 판별 이메일 폴백 사용됨(uid 미등록):', uid);
+    return uid;
   }
-  return uid;
+  throw new HttpsError('permission-denied', '관리자만 수행할 수 있습니다.');
 }
 
 // interior-3d-viewer 프리셋 갤러리 전용 함수. presetgallery 코드베이스로 분리되어 있어서
 // 이 프로젝트의 다른 서비스(default 코드베이스) 함수들과는 완전히 독립적으로 배포/관리됨.
 exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
-  const uid = requireAdmin(request);
+  const uid = await requireAdmin(request);
   const data = request.data || {};
   const rawName = data.name;
   const rawConfig = data.config;
@@ -97,7 +109,7 @@ exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
 // 이미 게시된 프리셋의 이름/설정을 그대로 덮어쓴다 (관리자 전용) - id/게시자/게시일은 유지하고
 // config(및 선택적으로 name)만 교체, updatedAt만 새로 기록한다.
 exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
-  requireAdmin(request);
+  await requireAdmin(request);
   const data = request.data || {};
   const id = data.id;
   const rawName = data.name;
@@ -137,7 +149,7 @@ exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
 
 // 게시가 관리자 전용으로 바뀌었으므로 삭제도 소유자(ownerUid) 대신 관리자 여부로만 판별한다.
 exports.deletePreset = onCall({ region: 'us-central1' }, async (request) => {
-  requireAdmin(request);
+  await requireAdmin(request);
   const id = request.data && request.data.id;
   if (typeof id !== 'string' || !id) {
     throw new HttpsError('invalid-argument', '삭제할 프리셋 id가 필요합니다.');
