@@ -69,6 +69,14 @@
       }
     },
 
+    "bannedAccounts": {
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
     "bannerRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
