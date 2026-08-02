@@ -46,7 +46,7 @@
     },
 
     "presence": {
-      "users": {
+      "$appId": {
         ".read": "auth != null",
         "$uid": {
           ".write": "auth != null && auth.uid === $uid",
@@ -476,6 +476,13 @@
     "seriesConfig": {
       ".read": false,
       ".write": false
+    },
+
+    "analytics": {
+      "presenceHourly": {
+        ".read": false,
+        ".write": false
+      }
     }
   }
 }
