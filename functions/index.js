@@ -262,3 +262,17 @@ exports.reportPresetMergeFailure = onCall({ region: 'us-central1' }, async (requ
   await logMergeFailure(db, { oldUid: oldUidHint, newUid: newUid, reason: reason, verified: false });
   return { ok: true };
 });
+
+// 09번/13번 — 클라이언트가 로컬에서 이메일 문자열을 직접 비교하던 관리자 UI
+// 판별을 서버 확인으로 옮기기 위한 가벼운 전용 함수. adminCenter/adminUids는
+// .read:false라 클라이언트가 직접 읽을 수 없으므로, 판별 결과만 반환한다.
+// 이름을 galleryWhoAmI로 지은 이유 — StreamBet-Market·soop-stock-market도 같은
+// 프로젝트에 같은 목적의 함수를 배포했다. codebase가 달라도 실제 Cloud Functions
+// 이름공간은 프로젝트 전체에서 공유되므로, 이름이 겹치면 나중에 배포한 쪽이
+// 앞선 쪽을 조용히 덮어쓴다 - 실제로 겪은 문제라 이름을 구분해서 피한다.
+exports.galleryWhoAmI = onCall({ region: 'us-central1' }, async (request) => {
+  const uid = requireAuth(request);
+  if (await isAdminUid(uid)) return { isAdmin: true };
+  const email = request.auth.token && request.auth.token.email;
+  return { isAdmin: email === ADMIN_EMAIL };
+});

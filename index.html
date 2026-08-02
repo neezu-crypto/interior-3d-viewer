@@ -354,10 +354,6 @@
     appId: "1:997788925900:web:b58db2970489bf18a3a769"
   };
 
-  // UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐 - 실제 권한은 항상 서버
-  // (functions/index.js의 requireAdmin, request.auth.token.email 기준)가 검증한다.
-  const ADMIN_EMAIL = 'skftodwocks2@gmail.com';
-
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const galleryRef = ref(db, 'presetGallery');
@@ -368,6 +364,11 @@
   const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
   const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
   const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+  // 09번/13번 — UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐(실제 권한은
+  // 항상 서버가 검증). adminCenter/adminUids는 .read:false라 클라이언트가 직접 못
+  // 읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
+  const whoAmIFn = httpsCallable(functions, 'galleryWhoAmI');
+  let isAdminCached = false;
   const auth = getAuth(app);
 
   window.__firebaseGallery = {
@@ -400,7 +401,7 @@
   window.__firebaseAuth = {
     getUser: function () { return currentUser; },
     isRealAccount: function () { return !!(currentUser && !currentUser.isAnonymous); },
-    isAdmin: function () { return !!(currentUser && !currentUser.isAnonymous && currentUser.email === ADMIN_EMAIL); },
+    isAdmin: function () { return isAdminCached; },
     signIn: function () {
       const provider = new GoogleAuthProvider();
 
@@ -465,13 +466,24 @@
     signOut: function () { return signOut(auth); }
   };
 
-  onAuthStateChanged(auth, function (user) {
+  onAuthStateChanged(auth, async function (user) {
     currentUser = user;
+    if (user && !user.isAnonymous) {
+      try {
+        const result = await whoAmIFn();
+        isAdminCached = !!(result.data && result.data.isAdmin);
+      } catch (err) {
+        console.error('관리자 여부 확인 실패:', err);
+        isAdminCached = false;
+      }
+    } else {
+      isAdminCached = false;
+    }
     window.dispatchEvent(new CustomEvent('firebase-auth-changed', {
       detail: {
         user: user,
         isRealAccount: !!(user && !user.isAnonymous),
-        isAdmin: !!(user && !user.isAnonymous && user.email === ADMIN_EMAIL)
+        isAdmin: isAdminCached
       }
     }));
     if (!user) {
