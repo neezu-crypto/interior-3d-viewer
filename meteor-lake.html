@@ -743,10 +743,12 @@ function updateEmbers(dt) {
 
 // 운석 머리 - 큰 불꽃 스프라이트 3장을 서로 다른 크기·속도로 겹쳐 회전·맥동시켜서
 // (매 프레임 다시 그리지 않고도) 참고 자료의 덩어리진 불덩이에 더 가깝게 만든다.
+// 색은 임의로 정하지 않고, 원본 일러스트의 머리 코어 주변에서 가장 붉은기가
+// 강한 픽셀(약 rgb(238,109,140))을 직접 샘플링해 그대로 썼다.
 const flameTextures = [11, 47, 93].map(getFlameSprite);
 const flameSprites = flameTextures.map(function (tex, idx) {
   const mat = new THREE.SpriteMaterial({
-    map: tex, color: 0xfff0c0, transparent: true, depthWrite: false,
+    map: tex, color: 0xee6d8c, transparent: true, depthWrite: false,
     blending: THREE.AdditiveBlending, opacity: 0.85
   });
   const spr = new THREE.Sprite(mat);
