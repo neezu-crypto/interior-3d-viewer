@@ -1922,11 +1922,24 @@
       applyBtn.type = 'button';
       applyBtn.textContent = '적용';
       applyBtn.addEventListener('click', function () {
-        window.__firebaseGallery.incrementApplyCount(key).catch(function (err) { console.error('적용 횟수 집계 실패:', err); }); // 통계용, 실패해도 실제 적용은 막지 않음
+        const statsDone = window.__firebaseGallery.incrementApplyCount(key).catch(function (err) { console.error('적용 횟수 집계 실패:', err); }); // 통계용, 실패해도 실제 적용은 막지 않음
         // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는
-        // 프리셋 - sceneUrl이 있으면 방 설정을 적용하는 대신 그 페이지로 이동한다
+        // 프리셋 - sceneUrl이 있으면 방 설정을 적용하는 대신 그 페이지로 이동한다.
+        // 다만 곧바로 location.href를 바꾸면 브라우저가 페이지를 떠나면서 방금 보낸
+        // 집계 요청(네트워크 왕복 필요)을 응답 받기 전에 취소해버려 카운트가 전혀
+        // 안 올라가는 문제가 있었다 - 집계 요청이 끝나거나 400ms가 지나거나 둘 중
+        // 먼저 오는 시점까지만 이동을 늦춰서, 느린 네트워크에도 이동 자체는 너무
+        // 오래 막히지 않으면서 집계 요청은 실제로 전송될 시간을 번다.
         if (entry.config.sceneUrl) {
-          window.location.href = entry.config.sceneUrl;
+          const sceneUrl = entry.config.sceneUrl;
+          let navigated = false;
+          function goToScene() {
+            if (navigated) return;
+            navigated = true;
+            window.location.href = sceneUrl;
+          }
+          statsDone.then(goToScene);
+          setTimeout(goToScene, 400);
           return;
         }
         applyConfig(entry.config);
