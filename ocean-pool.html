@@ -517,6 +517,33 @@ const VignetteShader = {
     '}'
 };
 
+// 화면 전체에 아주 약한 블러 - 9탭 가우시안 커널 한 번(분리 패스 아님, 정도가
+// 약해서 수평/수직 2패스씩 나눌 필요가 없다). u_resolution은 fitCanvas()에서
+// 실제 드로잉 버퍼 픽셀 크기로 갱신한다.
+const BlurShader = {
+  uniforms: { tDiffuse: { value: null }, u_resolution: { value: new THREE.Vector2(1, 1) }, u_amount: { value: 1.3 } },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D tDiffuse; uniform vec2 u_resolution; uniform float u_amount; varying vec2 vUv;' +
+    'void main() {' +
+    '  vec2 texel = (1.0 / u_resolution) * u_amount;' +
+    '  vec4 sum = vec4(0.0);' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0, -1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0, -1.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0, -1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0,  0.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0,  0.0)) * 0.25;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0,  0.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0,  1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0,  1.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0,  1.0)) * 0.0625;' +
+    '  gl_FragColor = sum;' +
+    '}'
+};
+
 // ------------------------------------------------------------
 // 씬 / 카메라 / 렌더러 - 카메라는 원점 고정, 물 배경판만 정면에 둔다.
 // ------------------------------------------------------------
@@ -538,11 +565,12 @@ const backdropHeight = 2 * BACKDROP_DIST * Math.tan(THREE.MathUtils.degToRad(FIX
 const backdropWidth = backdropHeight * FIXED_ASPECT;
 
 // 원본 스킨의 풀장 배경(assets/summer-pool.svg)은 그라데이션·튜브 없이 단색
-// #1fa3bc 사각형뿐이다 - 실제 "물" 느낌은 전부 아래 셰이더가 그 단색을 실시간
-// 굴절·발광시켜서 만든다. 튜브가 없으니 셰이더가 매 프레임 다시 그리던 "그림자
-// 텍스처 캔버스"도 필요 없어져, 그 단색을 셰이더 상수로 바로 넣었다.
-const SBM_WATER_BASE_COLOR = new THREE.Color(0x1fa3bc);
-const SBM_WATER_PARAMS = { blueish: 0.5, scale: 8, illumination: 0.2 };
+// #1fa3bc 사각형뿐이었다 - "모자이크 타일 바닥으로 바꿔달라"는 요청으로, 이제
+// 이 단색 대신 셰이더 안에서 절차적으로 그린 하늘색 모자이크 타일 패턴(셀마다
+// 해시 기반 색상 편차 + 줄눈)을 굴절·발광시킨다. 사진 텍스처를 쓰지 않은 이유는
+// 이 배경판이 화면 전체를 덮는 큰 평면이라 실사진을 반복(tile)하면 이음새가
+// 뚜렷하게 보이기 때문 - 절차적 패턴은 완전히 이음새 없이 반복된다.
+const SBM_WATER_PARAMS = { blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, sparkle: 0.4, glintScale: 22 };
 
 const SBM_WATER_VERT_SRC =
   'varying vec2 vUv;' +
@@ -559,7 +587,9 @@ const SBM_WATER_FRAG_SRC =
   'uniform float u_blueish;' +
   'uniform float u_scale;' +
   'uniform float u_illumination;' +
-  'uniform vec3 u_base_color;' +
+  'uniform float u_tile_count;' +
+  'uniform float u_sparkle;' +
+  'uniform float u_glint_scale;' +
   'vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }' +
@@ -599,6 +629,29 @@ const SBM_WATER_FRAG_SRC =
   '  }' +
   '  return (N.x + N.y + 0.1);' +
   '}' +
+  // 하늘색 모자이크 타일 바닥 - 셀 하나당 hash21로 뽑은 난수 하나로 밝은/보통/
+  // 짙은 하늘색 세 톤 중 하나를 섞고, 셀 경계 근처는 어둡게 눌러 줄눈을 그린다.
+  // 사진이 아니라 셀 좌표 기반 계산이라 완전히 이음새 없이 반복된다.
+  'float hash21(vec2 p) {' +
+  '  p = fract(p * vec2(123.34, 456.21));' +
+  '  p += dot(p, p + 45.32);' +
+  '  return fract(p.x * p.y);' +
+  '}' +
+  'vec3 tile_color(vec2 uv) {' +
+  '  vec2 grid = uv * u_tile_count;' +
+  '  vec2 cell_id = floor(grid);' +
+  '  vec2 cell_uv = fract(grid);' +
+  '  float r = hash21(cell_id);' +
+  '  vec3 light_tile = vec3(0.78, 0.93, 0.99);' +
+  '  vec3 mid_tile = vec3(0.46, 0.80, 0.94);' +
+  '  vec3 deep_tile = vec3(0.18, 0.55, 0.76);' +
+  '  vec3 col = mix(mid_tile, light_tile, smoothstep(0.15, 0.85, r));' +
+  '  col = mix(col, deep_tile, smoothstep(0.86, 0.94, r));' +
+  '  float edge = min(min(cell_uv.x, 1.0 - cell_uv.x), min(cell_uv.y, 1.0 - cell_uv.y));' +
+  '  float grout = 1.0 - smoothstep(0.0, 0.045, edge);' +
+  '  col = mix(col, col * 0.72, grout);' +
+  '  return col;' +
+  '}' +
   'void main() {' +
   '  vec2 uv = vUv;' +
   '  uv.y = 1.0 - uv.y;' +
@@ -609,10 +662,18 @@ const SBM_WATER_FRAG_SRC =
   '  float sn = surface_noise(surface_noise_uv, t, u_scale);' +
   '  sn *= pow(uv.y, 0.3);' +
   '  sn = pow(sn, 2.0);' +
-  '  vec3 color = u_base_color * (1.0 + u_illumination * sn);' +
+  '  vec3 base_color = tile_color(uv);' +
+  '  vec3 color = base_color * (1.0 + u_illumination * sn);' +
   '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
   '  float shadow = smoothstep(0.15, 0.0, sn);' +
   '  color -= shadow * (0.3 + u_illumination) * vec3(0.04, 0.12, 0.16);' +
+  // 햇빛 반짝임 - 잔물결과는 독립적으로 더 빠르게 움직이는 simplex 노이즈를
+  // 아주 높은 지수로 눌러, 노이즈 봉우리 근처만 살아남는 희소한 밝은 점으로
+  // 만든다(실제 수면 위 햇빛 글린트처럼 반짝이며 움직임).
+  '  float t_glint = 0.015 * u_time;' +
+  '  float glint_n = snoise(uv * u_glint_scale + vec2(4.7, 8.3) + t_glint * vec2(0.8, 1.3));' +
+  '  float glint = pow(clamp(glint_n * 0.5 + 0.5, 0.0, 1.0), 14.0);' +
+  '  color += glint * u_sparkle * vec3(1.0, 0.98, 0.9);' +
   '  gl_FragColor = vec4(color, 1.0);' +
   '}';
 
@@ -623,7 +684,9 @@ const waterMaterial = new THREE.ShaderMaterial({
     u_blueish: { value: SBM_WATER_PARAMS.blueish },
     u_scale: { value: SBM_WATER_PARAMS.scale },
     u_illumination: { value: SBM_WATER_PARAMS.illumination },
-    u_base_color: { value: SBM_WATER_BASE_COLOR }
+    u_tile_count: { value: SBM_WATER_PARAMS.tileCount },
+    u_sparkle: { value: SBM_WATER_PARAMS.sparkle },
+    u_glint_scale: { value: SBM_WATER_PARAMS.glintScale }
   },
   vertexShader: SBM_WATER_VERT_SRC,
   fragmentShader: SBM_WATER_FRAG_SRC
@@ -634,10 +697,12 @@ scene.add(backdrop);
 loadingEl.classList.add('hidden'); // 절차적 셰이더뿐이라 기다릴 텍스처 로딩이 없다
 
 // ------------------------------------------------------------
-// 후처리 - RenderPass + 비네트.
+// 후처리 - RenderPass + 약한 블러 + 비네트.
 // ------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+const blurPass = new ShaderPass(BlurShader);
+composer.addPass(blurPass);
 const vignettePass = new ShaderPass(VignetteShader);
 composer.addPass(vignettePass);
 composer.addPass(new OutputPass());
@@ -1018,6 +1083,7 @@ function fitCanvas() {
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h);
   composer.setSize(w, h);
+  blurPass.uniforms.u_resolution.value.set(w * pr, h * pr);
 }
 window.addEventListener('resize', fitCanvas);
 fitCanvas();
