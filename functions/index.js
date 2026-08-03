@@ -65,6 +65,33 @@ async function requireAdmin(request) {
   throw new HttpsError('permission-denied', '관리자만 수행할 수 있습니다.');
 }
 
+// admin-center의 위임 권한 카탈로그(PERMISSION_CATALOG)와 동일한 개념·동일한 RTDB
+// 노드를 그대로 공유한다 - admin-center/functions/index.js의
+// requireAdminOrDelegatedPermission, soop-stock-market의 동명 헬퍼와 판정 로직이
+// 같아야 한다(streamerVerifications의 uid로 인증 스트리머 여부 확인 →
+// adminCenter/streamerPermissions/{key} 값 확인). 그쪽 관리 화면에서 권한을
+// 켜고 끄면 이 저장소의 함수에도 그대로 반영된다.
+async function isVerifiedStreamerUid(uid) {
+  const db = getDatabase();
+  const snap = await db.ref('streamerVerifications').orderByChild('uid').equalTo(uid).limitToFirst(1).get();
+  return snap.exists();
+}
+async function requireAdminOrDelegatedPermission(request, permissionKey) {
+  const uid = requireAuth(request);
+  if (await isAdminUid(uid)) return uid;
+  const email = request.auth.token && request.auth.token.email;
+  if (email === ADMIN_EMAIL) {
+    console.warn('관리자 판별 이메일 폴백 사용됨(uid 미등록):', uid);
+    return uid;
+  }
+  if (await isVerifiedStreamerUid(uid)) {
+    const db = getDatabase();
+    const granted = (await db.ref('adminCenter/streamerPermissions/' + permissionKey).get()).val();
+    if (granted === true) return uid;
+  }
+  throw new HttpsError('permission-denied', '이 작업을 수행할 권한이 없습니다.');
+}
+
 // interior-3d-viewer 프리셋 갤러리 전용 함수. presetgallery 코드베이스로 분리되어 있어서
 // 이 프로젝트의 다른 서비스(default 코드베이스) 함수들과는 완전히 독립적으로 배포/관리됨.
 exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
@@ -281,7 +308,7 @@ exports.galleryWhoAmI = onCall({ region: 'us-central1' }, async (request) => {
 // 관리자가 firebase database:get/update로 CLI에서 직접 만지는 것뿐이었다(이
 // 시리즈에서 유일한 사각지대). 이 두 함수가 그 CLI 수작업을 대체한다.
 exports.listPresetMergeFailures = onCall({ region: 'us-central1' }, async (request) => {
-  await requireAdmin(request);
+  await requireAdminOrDelegatedPermission(request, 'reviewQueue');
   const db = getDatabase();
   const snap = await db.ref('presetMergeFailures').get();
   const data = snap.val() || {};
@@ -292,9 +319,10 @@ exports.listPresetMergeFailures = onCall({ region: 'us-central1' }, async (reque
 });
 
 // action: 'transfer'(oldUid의 프리셋 소유권을 newUid로 재이전 — claimPresetMerge와
-// 동일한 로직) 또는 'dismiss'(잘못된 신고 등으로 판단해 그냥 로그만 제거).
+// 동일한 로직) 또는 'dismiss'(잘못된 신고 등으로 판단해 그냥 로그만 제거). 관리자는
+// 항상, 인증 스트리머는 admin-center의 위임 권한 'reviewQueue'가 있을 때만.
 exports.resolvePresetMergeFailure = onCall({ region: 'us-central1' }, async (request) => {
-  await requireAdmin(request);
+  await requireAdminOrDelegatedPermission(request, 'reviewQueue');
   const data = request.data || {};
   const entryId = data.entryId;
   const action = data.action;
