@@ -772,15 +772,15 @@ function updateHeadGlow(t) {
 // 마을 불빛 반짝임 - 정확한 창문 좌표를 맞추는 대신, 이미지 하단(호숫가 마을) 영역에
 // 적당히 흩뿌리고 각자 다른 속도/위상으로 반짝이게 한다. 덧그리는 additive 오버레이라
 // 그림 속 불빛과 완벽히 겹치지 않아도 "불빛이 살아있는" 느낌을 자연스럽게 더해준다.
+// 전부 주황빛(따뜻한 불빛)으로 통일.
 // ------------------------------------------------------------
-const TWINKLE_COUNT = 140;
+const TWINKLE_COUNT = 190;
 const twinkleGeo = new THREE.BufferGeometry();
 const twinklePos = new Float32Array(TWINKLE_COUNT * 3);
 const twinkleColor = new Float32Array(TWINKLE_COUNT * 3);
 const twinklePhase = new Float32Array(TWINKLE_COUNT);
 const twinkleSpeed = new Float32Array(TWINKLE_COUNT);
 const twinkleBase = new Float32Array(TWINKLE_COUNT);
-const twinkleIsWarm = new Uint8Array(TWINKLE_COUNT);
 for (let i = 0; i < TWINKLE_COUNT; i++) {
   const side = Math.random();
   let u;
@@ -793,12 +793,10 @@ for (let i = 0; i < TWINKLE_COUNT; i++) {
   twinklePhase[i] = Math.random() * Math.PI * 2;
   twinkleSpeed[i] = 1.2 + Math.random() * 2.2;
   twinkleBase[i] = 0.35 + Math.random() * 0.4;
-  twinkleIsWarm[i] = Math.random() < 0.75 ? 1 : 0;
 }
 twinkleGeo.setAttribute('position', new THREE.BufferAttribute(twinklePos, 3));
 twinkleGeo.setAttribute('color', new THREE.BufferAttribute(twinkleColor, 3));
-const twinkleWarmColor = new THREE.Color(0xffdca0);
-const twinkleCoolColor = new THREE.Color(0xcfe8ff);
+const twinkleWarmColor = new THREE.Color(0xffa64d);
 const twinkleMat = new THREE.PointsMaterial({
   size: 4, map: glowSprite, vertexColors: true,
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
@@ -811,8 +809,48 @@ function updateTwinkle(t) {
   for (let i = 0; i < TWINKLE_COUNT; i++) {
     const s = Math.sin(t * twinkleSpeed[i] + twinklePhase[i]) * 0.5 + 0.5;
     const alpha = twinkleBase[i] * (0.35 + s * 0.9);
-    const col = twinkleIsWarm[i] ? twinkleWarmColor : twinkleCoolColor;
-    colorAttr.setXYZ(i, col.r * alpha, col.g * alpha, col.b * alpha);
+    colorAttr.setXYZ(i, twinkleWarmColor.r * alpha, twinkleWarmColor.g * alpha, twinkleWarmColor.b * alpha);
+  }
+  colorAttr.needsUpdate = true;
+}
+
+// ------------------------------------------------------------
+// 밤하늘 별빛 반짝임 - 원본 일러스트에 이미 그려진 별들 위에, 하늘 전체(위쪽 55%)에
+// 흩뿌린 푸른빛 반짝임을 덧그려서 살아있는 느낌을 더한다(마을 불빛과 동일한 기법,
+// 영역·색만 하늘·푸른빛으로 분리).
+// ------------------------------------------------------------
+const STAR_COUNT = 170;
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(STAR_COUNT * 3);
+const starColor = new Float32Array(STAR_COUNT * 3);
+const starPhase = new Float32Array(STAR_COUNT);
+const starSpeed = new Float32Array(STAR_COUNT);
+const starBase = new Float32Array(STAR_COUNT);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const u = Math.random();
+  const v = Math.random() * 0.55;
+  const w = imgToWorld(u * IMG_W, v * IMG_H, 0.35);
+  starPos[i * 3] = w.x; starPos[i * 3 + 1] = w.y; starPos[i * 3 + 2] = w.z;
+  starPhase[i] = Math.random() * Math.PI * 2;
+  starSpeed[i] = 1.0 + Math.random() * 2.6;
+  starBase[i] = 0.3 + Math.random() * 0.45;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(starColor, 3));
+const starBlueColor = new THREE.Color(0x9fd0ff);
+const starMat = new THREE.PointsMaterial({
+  size: 3, map: glowSprite, vertexColors: true,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+});
+const starPoints = new THREE.Points(starGeo, starMat);
+scene.add(starPoints);
+
+function updateStars(t) {
+  const colorAttr = starGeo.attributes.color;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const s = Math.sin(t * starSpeed[i] + starPhase[i]) * 0.5 + 0.5;
+    const alpha = starBase[i] * (0.3 + s * 0.95);
+    colorAttr.setXYZ(i, starBlueColor.r * alpha, starBlueColor.g * alpha, starBlueColor.b * alpha);
   }
   colorAttr.needsUpdate = true;
 }
@@ -1423,6 +1461,7 @@ function animate() {
   updateEmbers(dt);
   updateHeadGlow(t);
   updateTwinkle(t);
+  updateStars(t);
   composer.render();
 }
 animate();
