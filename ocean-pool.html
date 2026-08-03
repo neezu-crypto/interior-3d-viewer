@@ -586,7 +586,7 @@ const backdropWidth = backdropHeight * FIXED_ASPECT;
 // 이 배경판이 화면 전체를 덮는 큰 평면이라 실사진을 반복(tile)하면 이음새가
 // 뚜렷하게 보이기 때문 - 절차적 패턴은 완전히 이음새 없이 반복된다.
 const SBM_WATER_PARAMS = {
-  blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, refraction: 0.018,
+  blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, waterDistortion: 0.006, surfaceDistortion: 0.014,
   // 깊이감 - 타일 바닥 위에 덧씌우는 반투명 파란 "물의 몸통" 색. 이 맵은 정확한
   // 탑뷰(카메라가 바로 위에서 내려다봄)라 화면 위/아래에 따른 원근(멀고 가까움)
   // 차이가 없다 - 그래서 위치 그라데이션 없이 화면 전체에 균일한 비율로 섞는다.
@@ -609,7 +609,8 @@ const SBM_WATER_FRAG_SRC =
   'uniform float u_scale;' +
   'uniform float u_illumination;' +
   'uniform float u_tile_count;' +
-  'uniform float u_refraction;' +
+  'uniform float u_water_distortion;' +
+  'uniform float u_surface_distortion;' +
   'uniform vec3 u_depth_color;' +
   'uniform float u_depth_alpha;' +
   'vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
@@ -642,7 +643,7 @@ const SBM_WATER_FRAG_SRC =
   '  vec2 n = vec2(0.1);' +
   '  vec2 N = vec2(0.1);' +
   '  mat2 m = rotate2D(0.5);' +
-  '  for (int j = 0; j < 5; j++) {' +
+  '  for (int j = 0; j < 10; j++) {' +
   '    uv *= m; n *= m;' +
   '    vec2 q = uv * scale + float(j) + n + (0.5 + 0.5 * float(j)) * (mod(float(j), 2.0) - 1.0) * t;' +
   '    n += sin(q);' +
@@ -684,15 +685,12 @@ const SBM_WATER_FRAG_SRC =
   '  float sn = surface_noise(surface_noise_uv, t, u_scale);' +
   '  sn *= pow(uv.y, 0.3);' +
   '  sn = pow(sn, 2.0);' +
-  // 물결로 인한 배경 왜곡 - 지금까지는 sn(잔물결)이 밝기만 흔들고 타일은 항상
-  // 제자리라 격자가 뻣뻣하게 고정돼 보였다. 잔물결과 같은 흐름장(surface_noise_uv,
-  // t)에서 뽑은 저비용 snoise 두 개를 x/y 변위 벡터로 써서 타일을 샘플링하는
-  // uv 자체를 굴절시킨다 - 실제 수면 아래 바닥이 흔들려 보이는 것과 같은 원리.
-  '  vec2 refr = vec2(' +
-  '    snoise(surface_noise_uv * 0.6 + vec2(1.7, 0.0)),' +
-  '    snoise(surface_noise_uv * 0.6 + vec2(0.0, 3.1))' +
-  '  );' +
-  '  vec2 tile_uv = uv + refr * u_refraction;' +
+  // 물결로 인한 배경 왜곡 - Ksenia Kondrashova 원본 CodePen과 동일하게, 큰 흐름
+  // (outer_noise)과 잔물결 디테일(sn) 두 겹을 각각 다른 세기로 타일 좌표에 더한다
+  // (원본은 이걸 이미지 텍스처의 img_uv에 적용하지만 우리는 텍스처 대신 절차적
+  // 타일이라 tile_uv에 적용). 두 겹을 쓰는 이유는 큰 흐름 하나만 쓰면 왜곡이
+  // 밋밋하고, 디테일 하나만 쓰면 전체적으로 출렁이는 느낌이 없기 때문.
+  '  vec2 tile_uv = uv + u_water_distortion * outer_noise + u_surface_distortion * sn;' +
   '  vec3 base_color = tile_color(tile_uv);' +
   // 깊이감 - 타일 위에 반투명 파란 "물의 몸통" 색을 한 겹 더 씌운다. 탑뷰라
   // 화면 위/아래에 원근 차이가 없어 그라데이션 없이 균일한 비율로 섞는다.
@@ -713,7 +711,8 @@ const waterMaterial = new THREE.ShaderMaterial({
     u_scale: { value: SBM_WATER_PARAMS.scale },
     u_illumination: { value: SBM_WATER_PARAMS.illumination },
     u_tile_count: { value: SBM_WATER_PARAMS.tileCount },
-    u_refraction: { value: SBM_WATER_PARAMS.refraction },
+    u_water_distortion: { value: SBM_WATER_PARAMS.waterDistortion },
+    u_surface_distortion: { value: SBM_WATER_PARAMS.surfaceDistortion },
     u_depth_color: { value: SBM_WATER_PARAMS.depthColor },
     u_depth_alpha: { value: SBM_WATER_PARAMS.depthAlpha }
   },
