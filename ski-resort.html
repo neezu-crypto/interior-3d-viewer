@@ -62,6 +62,27 @@
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
 
+  /* 다른 배경 페이지로 이동하는 프리셋("적용") 클릭 시 - 집계 요청이 서버에
+     확실히 전송된 걸 확인한 뒤에만 페이지를 넘기기 위해, 그 사이 짧은 대기를
+     사용자에게 보여준다(index.html과 동일한 스타일). */
+  .scene-apply-overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: rgba(13,12,11,0.85);
+    backdrop-filter: blur(3px);
+    color: rgba(255,255,255,0.85);
+    font-size: 13px; letter-spacing: 0.05em;
+    z-index: 500;
+  }
+  .scene-apply-overlay[hidden] { display: none; }
+  .scene-apply-spinner {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: rgba(255,170,80,0.9);
+    animation: scene-apply-spin 0.8s linear infinite;
+  }
+  @keyframes scene-apply-spin { to { transform: rotate(360deg); } }
+
   #sidePanel {
     position: absolute;
     top: 50%; right: 8%;
@@ -324,6 +345,11 @@
   </div>
 
   <div id="loading">불러오는 중...</div>
+
+  <div id="sceneApplyOverlay" class="scene-apply-overlay" hidden>
+    <div class="scene-apply-spinner"></div>
+    <div class="scene-apply-text">이동 중...</div>
+  </div>
 </div>
 
 <script type="module">
@@ -390,6 +416,11 @@
   const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
   const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
   const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+  // 통합 관리 센터에서 배경시장 갤러리 통계(적용/OBS 링크 횟수)를 보여주기 위한
+  // 집계용 - 클릭한 사람에게 결과를 보여줄 필요가 없어 실패해도 조용히 무시한다
+  // (통계 갱신 실패로 실제 적용·복사 동작 자체를 막으면 안 됨).
+  const incrementPresetApplyCountFn = httpsCallable(functions, 'incrementPresetApplyCount');
+  const incrementPresetObsLinkCountFn = httpsCallable(functions, 'incrementPresetObsLinkCount');
   // 09번/13번 — UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐(실제 권한은
   // 항상 서버가 검증). adminCenter/adminUids는 .read:false라 클라이언트가 직접 못
   // 읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
@@ -406,6 +437,12 @@
     },
     remove: function (id) {
       return deletePresetFn({ id: id });
+    },
+    incrementApplyCount: function (id) {
+      return incrementPresetApplyCountFn({ presetId: id });
+    },
+    incrementObsLinkCount: function (id) {
+      return incrementPresetObsLinkCountFn({ presetId: id });
     },
     subscribe: function (callback, onError) {
       onValue(galleryRef, function (snapshot) {
@@ -1345,7 +1382,29 @@
       applyBtn.className = 'preset-btn';
       applyBtn.type = 'button';
       applyBtn.textContent = '적용';
-      applyBtn.addEventListener('click', function () { applyConfig(entry.config); });
+      applyBtn.addEventListener('click', function () {
+        const statsDone = window.__firebaseGallery.incrementApplyCount(key).catch(function (err) { console.error('적용 횟수 집계 실패:', err); }); // 통계용, 실패해도 실제 적용은 막지 않음
+        // 이 프리셋이 완전히 다른 배경 페이지(스키장·불꽃놀이 등)로 연결되는
+        // sceneUrl 프리셋이면 곧바로 그 페이지로 이동한다. 다만 응답을 받기 전에
+        // 페이지를 떠나면 브라우저가 방금 보낸 집계 요청을 취소해버리므로,
+        // 로딩 오버레이를 띄운 채 집계 요청이 끝나거나(정상) 5초가 지나면(네트워크
+        // 완전 단절 등 안전장치) 이동한다.
+        if (entry.config.sceneUrl) {
+          const sceneUrl = entry.config.sceneUrl;
+          const overlay = document.getElementById('sceneApplyOverlay');
+          if (overlay) overlay.hidden = false;
+          let navigated = false;
+          function goToScene() {
+            if (navigated) return;
+            navigated = true;
+            window.location.href = sceneUrl;
+          }
+          statsDone.then(goToScene);
+          setTimeout(goToScene, 5000);
+          return;
+        }
+        applyConfig(entry.config);
+      });
       row.appendChild(applyBtn);
 
       // OBS 링크 - sceneUrl 프리셋이면 그 배경 페이지로 바로, 방 설정 프리셋이면
@@ -1357,6 +1416,7 @@
       obsBtn.textContent = 'OBS';
       obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
       obsBtn.addEventListener('click', function () {
+        window.__firebaseGallery.incrementObsLinkCount(key).catch(function (err) { console.error('OBS 링크 집계 실패:', err); }); // 통계용, 실패해도 실제 복사는 막지 않음
         const dir = location.pathname.replace(/[^/]*$/, '');
         const url = entry.config.sceneUrl
           ? location.origin + dir + entry.config.sceneUrl + '?obs=1'
