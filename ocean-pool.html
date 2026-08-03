@@ -586,7 +586,7 @@ const backdropWidth = backdropHeight * FIXED_ASPECT;
 // 이 배경판이 화면 전체를 덮는 큰 평면이라 실사진을 반복(tile)하면 이음새가
 // 뚜렷하게 보이기 때문 - 절차적 패턴은 완전히 이음새 없이 반복된다.
 const SBM_WATER_PARAMS = {
-  blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, sparkle: 0.4, glintScale: 22, refraction: 0.018,
+  blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, refraction: 0.018,
   // 깊이감 - 타일 바닥 위에 덧씌우는 반투명 파란 "물의 몸통" 색. 이 맵은 정확한
   // 탑뷰(카메라가 바로 위에서 내려다봄)라 화면 위/아래에 따른 원근(멀고 가까움)
   // 차이가 없다 - 그래서 위치 그라데이션 없이 화면 전체에 균일한 비율로 섞는다.
@@ -609,8 +609,6 @@ const SBM_WATER_FRAG_SRC =
   'uniform float u_scale;' +
   'uniform float u_illumination;' +
   'uniform float u_tile_count;' +
-  'uniform float u_sparkle;' +
-  'uniform float u_glint_scale;' +
   'uniform float u_refraction;' +
   'uniform vec3 u_depth_color;' +
   'uniform float u_depth_alpha;' +
@@ -698,28 +696,12 @@ const SBM_WATER_FRAG_SRC =
   '  vec3 base_color = tile_color(tile_uv);' +
   // 깊이감 - 타일 위에 반투명 파란 "물의 몸통" 색을 한 겹 더 씌운다. 탑뷰라
   // 화면 위/아래에 원근 차이가 없어 그라데이션 없이 균일한 비율로 섞는다.
-  // 조명/반짝임보다 먼저 섞어야 그 위 효과가 살아난다.
+  // 조명보다 먼저 섞어야 그 위 효과가 살아난다.
   '  base_color = mix(base_color, u_depth_color, u_depth_alpha);' +
   '  vec3 color = base_color * (1.0 + u_illumination * sn);' +
   '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
   '  float shadow = smoothstep(0.15, 0.0, sn);' +
   '  color -= shadow * (0.3 + u_illumination) * vec3(0.04, 0.12, 0.16);' +
-  // 햇빛 반짝임 - 예전엔 시간에 따라 한쪽 방향으로 계속 흘러가는 단일 노이즈를
-  // 썼더니 "눈이 바람에 날리는" 것처럼 화면 전체가 한 방향으로 쓸려가 보였다.
-  // 이번엔 반짝일 후보 위치(glint_n)는 시간과 무관하게 고정해 두고, 그 자리마다
-  // 고유한 위상/속도로 밝기만 오르내리게(트윙클) 해서 위치는 그대로, 밝기만
-  // 깜빡이는 자연스러운 반짝임을 만든다.
-  '  float glint_n = snoise(uv * u_glint_scale + vec2(4.7, 8.3));' +
-  '  float glint_spot = pow(clamp(glint_n * 0.5 + 0.5, 0.0, 1.0), 14.0);' +
-  '  vec2 glint_cell = floor(uv * u_glint_scale);' +
-  '  float glint_seed = hash21(glint_cell);' +
-  // u_time은 밀리초 단위라 그대로 sin()에 넣으면 mediump 정밀도 한계를 넘어서
-  // 값이 깨진다(파일 전체가 항상 0.002~0.02배로 축소한 뒤 삼각함수에 넣는 이유와
-  // 동일) - 여기서도 초 단위로 먼저 줄인 뒤 위상/속도를 곱한다.
-  '  float t_twinkle = u_time * 0.001;' +
-  '  float twinkle = 0.5 + 0.5 * sin(t_twinkle * (2.0 + glint_seed * 6.0) + glint_seed * 6.2831853);' +
-  '  float glint = glint_spot * smoothstep(0.5, 1.0, twinkle);' +
-  '  color += glint * u_sparkle * vec3(1.0, 0.98, 0.9);' +
   '  gl_FragColor = vec4(color, 1.0);' +
   '}';
 
@@ -731,8 +713,6 @@ const waterMaterial = new THREE.ShaderMaterial({
     u_scale: { value: SBM_WATER_PARAMS.scale },
     u_illumination: { value: SBM_WATER_PARAMS.illumination },
     u_tile_count: { value: SBM_WATER_PARAMS.tileCount },
-    u_sparkle: { value: SBM_WATER_PARAMS.sparkle },
-    u_glint_scale: { value: SBM_WATER_PARAMS.glintScale },
     u_refraction: { value: SBM_WATER_PARAMS.refraction },
     u_depth_color: { value: SBM_WATER_PARAMS.depthColor },
     u_depth_alpha: { value: SBM_WATER_PARAMS.depthAlpha }
