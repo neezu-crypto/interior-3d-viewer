@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>스트리머 배경시장 · 오션 풀</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: #04060a;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #04060a;
+  }
+
+  #scene {
+    display: block;
+    touch-action: none;
+  }
+
+  #loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #04060a;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    transition: opacity 0.6s ease;
+    z-index: 20;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  /* 다른 배경 페이지로 이동하는 프리셋("적용") 클릭 시 - 집계 요청이 서버에
+     확실히 전송된 걸 확인한 뒤에만 페이지를 넘기기 위해, 그 사이 짧은 대기를
+     사용자에게 보여준다(index.html과 동일한 스타일). */
+  .scene-apply-overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: rgba(13,12,11,0.85);
+    backdrop-filter: blur(3px);
+    color: rgba(255,255,255,0.85);
+    font-size: 13px; letter-spacing: 0.05em;
+    z-index: 500;
+  }
+  .scene-apply-overlay[hidden] { display: none; }
+  .scene-apply-spinner {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: rgba(255,170,80,0.9);
+    animation: scene-apply-spin 0.8s linear infinite;
+  }
+  @keyframes scene-apply-spin { to { transform: rotate(360deg); } }
+
+  #sidePanel {
+    position: absolute;
+    top: 50%; right: 8%;
+    transform: translateY(-50%);
+    width: 300px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(20, 18, 16, 0.55);
+    backdrop-filter: blur(6px);
+    color: rgba(255,255,255,0.88);
+    font-size: 12px;
+    z-index: 10;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+  }
+  #sidePanel::-webkit-scrollbar { width: 6px; }
+  #sidePanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 3px; }
+
+  #panelHandle {
+    cursor: grab;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -14px -14px 8px -14px;
+    padding: 7px 0;
+    border-radius: 14px 14px 0 0;
+    touch-action: none;
+    transition: background 0.15s ease;
+  }
+  #panelHandle:hover { background: rgba(255,255,255,0.06); }
+  #panelHandle:active { cursor: grabbing; }
+  #panelHandle .panel-grip {
+    width: 32px; height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.3);
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin: 0 0 12px;
+  }
+
+  .panel-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0 0 14px;
+  }
+
+  .auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
+  #authStatus {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #authBtn {
+    flex: none;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.9);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  #authBtn:hover { background: rgba(255,255,255,0.14); }
+  #authBtn:disabled { opacity: 0.5; cursor: default; }
+
+  .preset-save-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  #presetNameInput {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    outline: none;
+  }
+  #presetNameInput::placeholder { color: rgba(255,255,255,0.4); }
+  #presetNameInput:focus { border-color: rgba(232, 166, 87, 0.6); }
+  #presetSaveBtn {
+    flex: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(232, 166, 87, 0.85);
+    color: #1a1410;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #presetSaveBtn:hover { background: #e8a657; }
+
+  .panel-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.14);
+    margin: 12px 0;
+  }
+
+  .preset-empty {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+  }
+  .preset-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .preset-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.88);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+  }
+  .preset-btn {
+    flex: none;
+    padding: 4px 9px;
+    border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.85);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  .preset-btn:hover { border-color: rgba(232, 166, 87, 0.6); }
+  .preset-btn--del {
+    color: rgba(255,255,255,0.5);
+    padding: 4px 7px;
+  }
+  .preset-btn--del:hover { color: #e08a6a; border-color: rgba(224, 138, 106, 0.6); }
+
+  /* devbar - 다른 제작 게임 홍보용 상단 바, 넘칠 때만 JS가 자동 스크롤 처리 */
+  .devbar {
+    flex: none;
+    background: #0e1116;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+    z-index: 30;
+  }
+  .devbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 7px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .devbar-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .devbar-viewport { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .devbar-track { display: flex; gap: 8px; width: max-content; }
+  .devbar-track.auto-scroll { animation: devbar-scroll var(--devbar-duration, 20s) linear infinite; }
+  .devbar-track.auto-scroll:hover { animation-play-state: paused; }
+  @keyframes devbar-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .devbar-track.auto-scroll { animation: none; }
+    .devbar-viewport { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+  .dev-game-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 6px 11px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.12s ease;
+  }
+  .dev-game-link:hover { background: rgba(255,255,255,0.18); }
+</style>
+</head>
+<body>
+
+<div class="devbar" id="devbar">
+  <div class="devbar-inner">
+    <div class="devbar-viewport" id="devbarViewport">
+      <div class="devbar-track" id="devbarTrack">
+        <span class="devbar-label">스트리머 배경시장 · BY 오목지면시그</span>
+        <a class="dev-game-link" href="https://www.sooplive.com/station/skftodwocks2" target="_blank" rel="noopener noreferrer">방송국</a>
+        <a class="dev-game-link" data-game-id="stockMarket" href="https://neezu-crypto.github.io/soop-stock-market/index.html" target="_blank" rel="noopener noreferrer">스트리머 주식시장</a>
+        <a class="dev-game-link" data-game-id="dontClickAds" href="https://neezu-crypto.github.io/dont-click-ads/" target="_blank" rel="noopener noreferrer">절대 광고를 클릭하지 마</a>
+        <a class="dev-game-link" data-game-id="midnightMartRun" href="https://neezu-crypto.github.io/midnight-mart-run/" target="_blank" rel="noopener noreferrer">미트나잇 마트런</a>
+        <a class="dev-game-link" data-game-id="bettingMarket" href="https://neezu-crypto.github.io/StreamBet-Market/" target="_blank" rel="noopener noreferrer">스트리머 배팅시장</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <div id="sidePanel">
+    <div id="panelHandle" title="드래그해서 패널 위치 이동"><div class="panel-grip"></div></div>
+
+    <div class="auth-row">
+      <span id="authStatus">계정 확인 중...</span>
+      <button id="authBtn" type="button" disabled>Google 로그인</button>
+    </div>
+
+    <p class="panel-hint">화면을 더블클릭하면 전체화면으로 전환·복귀돼요. 아래 갤러리에 게시된 프리셋을 적용하거나 OBS 브라우저 소스용 링크를 복사해 쓸 수 있어요. 새 프리셋 저장·공유·게시/삭제는 관리자 계정만 가능해요. 소리는 기본적으로 꺼져 있어요(방송 사고 방지).</p>
+
+    <div id="localPresetSection" style="display:none;">
+      <p class="panel-title">프리셋 (관리자 전용)</p>
+      <div class="preset-save-row">
+        <input type="text" id="presetNameInput" placeholder="프리셋 이름" maxlength="24">
+        <button id="presetSaveBtn" type="button">저장</button>
+      </div>
+      <button id="addSceneLinkBtn" type="button" style="display:none; width:100%; margin-bottom:10px; padding:6px 0;" class="preset-btn">🔗 다른 배경 페이지 링크 추가 (관리자)</button>
+      <div id="presetList"></div>
+
+      <div class="panel-divider"></div>
+    </div>
+
+    <p class="panel-title">갤러리 (모두 공개)</p>
+    <div id="galleryList" class="preset-empty">불러오는 중...</div>
+  </div>
+
+  <div id="loading">불러오는 중...</div>
+
+  <div id="sceneApplyOverlay" class="scene-apply-overlay" hidden>
+    <div class="scene-apply-spinner"></div>
+    <div class="scene-apply-text">이동 중...</div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+// 오션 풀 배경 - StreamBet-Market(배팅시장) '오션 테마' 스킨의 실시간 WebGL 수면
+// 왜곡 셰이더를 그대로 가져온 배경 페이지("배팅시장 스킨중에 오션 테마가 있는데
+// 그걸 그대로 사용하고 튜브는 빼줘" 요청). 원본 스킨은 단색 풀장 이미지(#1fa3bc)
+// 위에 셰이더로 잔물결·카우스틱을 실시간으로 그려서 물처럼 보이게 한다 — 튜브가
+// 없으면 셰이더가 굴절시키는 "이미지"는 항상 이 단색 그대로이므로, 이 페이지에서는
+// 텍스처 캔버스 없이 그 단색을 셰이더 안에 상수로 넣어 완전히 절차적으로 그린다
+// (원본의 이미지 샘플링/그림자 합성 로직은 전부 튜브 위치 계산용이라 튜브를 빼면서
+// 함께 걷어냈다). 셰이더 알고리즘(심플렉스 노이즈 기반 표면 왜곡) 자체는 Ksenia
+// Kondrashova의 MIT 라이선스 CodePen(https://codepen.io/ksenia-k/pen/RwXVMMY,
+// "Lightweight Water Distortion Effect")을 원 저작자 표기와 함께 그대로 따른다.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ------------------------------------------------------------
+// Firebase RTDB - 공개 프리셋 갤러리용. index.html/ski-resort.html/fireworks.html/
+// meteor-lake.html과 동일한 프로젝트를 그대로 공유한다.
+// ------------------------------------------------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js";
+import {
+  getAuth, GoogleAuthProvider, signInAnonymously, signInWithPopup, signInWithCredential,
+  linkWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAZcjQPHphENs-Bb7IfdL2qTtOMhJrRP54",
+  authDomain: "soop-stock-market.firebaseapp.com",
+  databaseURL: "https://soop-stock-market-default-rtdb.firebaseio.com",
+  projectId: "soop-stock-market",
+  storageBucket: "soop-stock-market.firebasestorage.app",
+  messagingSenderId: "997788925900",
+  appId: "1:997788925900:web:b58db2970489bf18a3a769"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+const galleryRef = ref(db, 'presetGallery');
+
+// 08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
+// 하드코딩된 링크를 대체한다. 노드가 비어있거나 조회 실패 시 기존 하드코딩된
+// data-game-id 링크를 그대로 둔다(devbar가 통째로 사라지는 사고 방지) — "방송국"
+// 링크는 devbarLinks 대상이 아니라 항상 하드코딩 그대로 유지된다.
+(async function () {
+  const SELF_GAME_ID = 'backgroundMarket';
+  try {
+    const snap = await get(ref(db, 'devbarLinks'));
+    const data = snap.val();
+    if (!data) return;
+    const links = Object.keys(data)
+      .filter(function (id) { return id !== SELF_GAME_ID && data[id] && data[id].url; })
+      .map(function (id) { return Object.assign({ id: id }, data[id]); })
+      .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    if (!links.length) return;
+    const track = document.getElementById('devbarTrack');
+    if (!track) return;
+    track.querySelectorAll('a[data-game-id]').forEach(function (el) { el.remove(); });
+    links.forEach(function (link) {
+      const a = document.createElement('a');
+      a.className = 'dev-game-link';
+      a.dataset.gameId = link.id;
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = link.label;
+      track.appendChild(a);
+    });
+    window.dispatchEvent(new Event('resize')); // 마퀴 재계산 트리거
+  } catch (e) {
+    console.error('devbar 링크 갱신 실패(기존 링크 유지):', e);
+  }
+})();
+const functions = getFunctions(fbApp, 'us-central1');
+const publishPresetFn = httpsCallable(functions, 'publishPreset');
+const updatePresetFn = httpsCallable(functions, 'updatePreset');
+const deletePresetFn = httpsCallable(functions, 'deletePreset');
+const requestMergeTicketFn = httpsCallable(functions, 'requestPresetMergeTicket');
+const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
+const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
+// 통합 관리 센터에서 배경시장 갤러리 통계(적용/OBS 링크 횟수)를 보여주기 위한
+// 집계용 - 클릭한 사람에게 결과를 보여줄 필요가 없어 실패해도 조용히 무시한다
+// (통계 갱신 실패로 실제 적용·복사 동작 자체를 막으면 안 됨). 새 배경 페이지를
+// 만들 때 이 호출을 빠뜨리면 안 된다는 게 CLAUDE.md에 명시된 규칙이라 처음부터 넣는다.
+const incrementPresetApplyCountFn = httpsCallable(functions, 'incrementPresetApplyCount');
+const incrementPresetObsLinkCountFn = httpsCallable(functions, 'incrementPresetObsLinkCount');
+// 09번/13번 — UI에서 게시/삭제 버튼을 보여줄지 판단하는 용도일 뿐(실제 권한은
+// 항상 서버가 검증). adminCenter/adminUids는 .read:false라 클라이언트가 직접 못
+// 읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
+const whoAmIFn = httpsCallable(functions, 'galleryWhoAmI');
+let isAdminCached = false;
+const auth = getAuth(fbApp);
+
+let currentUser = null;
+const firebaseAuthApi = {
+  isRealAccount: function () { return !!(currentUser && !currentUser.isAnonymous); },
+  isAdmin: function () { return isAdminCached; },
+  signIn: function () {
+    const provider = new GoogleAuthProvider();
+    function handleFail(err) {
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+      console.error('Google 로그인 실패:', err);
+      window.alert('Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+    const oldUidBeforeSwitch = currentUser ? currentUser.uid : null;
+    function linkOrSwitch(ticket) {
+      return linkWithPopup(currentUser, provider).catch(function (err) {
+        if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+        if (err && err.code === 'auth/credential-already-in-use') {
+          const cred = GoogleAuthProvider.credentialFromError(err);
+          if (cred) {
+            return signInWithCredential(auth, cred).then(function () {
+              if (!ticket) {
+                return reportMergeFailureFn({ oldUidHint: oldUidBeforeSwitch, reason: 'no-ticket' }).catch(function (reportErr) {
+                  console.error('실패 로그 기록도 실패함:', reportErr);
+                });
+              }
+              return claimMergeFn({ ticket: ticket }).catch(function (claimErr) {
+                console.error('프리셋 소유권 이전 실패 (서버에 실패 로그가 남았을 수 있음):', claimErr);
+              });
+            }).catch(handleFail);
+          }
+        }
+        handleFail(err);
+      });
+    }
+    if (currentUser && currentUser.isAnonymous) {
+      return requestMergeTicketFn().then(function (res) {
+        return linkOrSwitch(res.data && res.data.ticket);
+      }).catch(function (err) {
+        console.error('병합 티켓 발급 실패, 티켓 없이 로그인 진행:', err);
+        return linkOrSwitch(null);
+      });
+    }
+    return signInWithPopup(auth, provider).catch(handleFail);
+  },
+  signOut: function () { return signOut(auth); }
+};
+
+// ------------------------------------------------------------
+// 기본 설정 - 방송 송출용 고정 16:9 (다른 배경 페이지들과 동일한 규칙). 카메라는
+// 원점에 두고 기본 방향(-Z를 바라봄)을 그대로 쓴다 - 배경판이 카메라 정면에
+// 평평하게 있을 뿐이라 lookAt으로 각도를 줄 필요가 없다.
+// ------------------------------------------------------------
+const FIXED_ASPECT = 16 / 9;
+const FIXED_FOV = 50;
+
+const canvas = document.getElementById('scene');
+const loadingEl = document.getElementById('loading');
+const sidePanel = document.getElementById('sidePanel');
+const panelHandle = document.getElementById('panelHandle');
+const appEl = document.getElementById('app');
+
+// ------------------------------------------------------------
+// 후보정 셰이더 - 비네트. 다른 배경 페이지들과 동일(블룸·틸트시프트는 화면 전체가
+// 한 평면 위의 물결이라 초점/광원 구분이 없어 이 씬에는 의미가 없어 생략).
+// ------------------------------------------------------------
+const VignetteShader = {
+  uniforms: { tDiffuse: { value: null }, darkness: { value: 1.1 } },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D tDiffuse; uniform float darkness; varying vec2 vUv;' +
+    'void main() {' +
+    '  vec4 texel = texture2D(tDiffuse, vUv);' +
+    '  vec2 uv = vUv - 0.5;' +
+    '  float vig = 1.0 - dot(uv, uv) * darkness;' +
+    '  gl_FragColor = vec4(texel.rgb * clamp(vig, 0.0, 1.0), texel.a);' +
+    '}'
+};
+
+// ------------------------------------------------------------
+// 씬 / 카메라 / 렌더러 - 카메라는 원점 고정, 물 배경판만 정면에 둔다.
+// ------------------------------------------------------------
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 3000);
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// ------------------------------------------------------------
+// 물 배경판 - 카메라 시야를 정확히 채우는 평면에 수면 왜곡 셰이더를 그린다.
+// 카메라 aspect/FOV가 고정이라 이 평면 크기는 창 크기와 무관하게 항상 화면을
+// 꽉 채운다(letterbox는 fitCanvas()의 CSS 크기 조정만으로 처리).
+// ------------------------------------------------------------
+const BACKDROP_DIST = 300;
+const backdropHeight = 2 * BACKDROP_DIST * Math.tan(THREE.MathUtils.degToRad(FIXED_FOV) / 2);
+const backdropWidth = backdropHeight * FIXED_ASPECT;
+
+// 원본 스킨의 풀장 배경(assets/summer-pool.svg)은 그라데이션·튜브 없이 단색
+// #1fa3bc 사각형뿐이다 - 실제 "물" 느낌은 전부 아래 셰이더가 그 단색을 실시간
+// 굴절·발광시켜서 만든다. 튜브가 없으니 셰이더가 매 프레임 다시 그리던 "그림자
+// 텍스처 캔버스"도 필요 없어져, 그 단색을 셰이더 상수로 바로 넣었다.
+const SBM_WATER_BASE_COLOR = new THREE.Color(0x1fa3bc);
+const SBM_WATER_PARAMS = { blueish: 0.5, scale: 8, illumination: 0.2 };
+
+const SBM_WATER_VERT_SRC =
+  'varying vec2 vUv;' +
+  'void main() {' +
+  '  vUv = uv;' +
+  '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);' +
+  '}';
+
+const SBM_WATER_FRAG_SRC =
+  'precision mediump float;' +
+  'varying vec2 vUv;' +
+  'uniform float u_time;' +
+  'uniform float u_ratio;' +
+  'uniform float u_blueish;' +
+  'uniform float u_scale;' +
+  'uniform float u_illumination;' +
+  'uniform vec3 u_base_color;' +
+  'vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
+  'vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
+  'vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }' +
+  'float snoise(vec2 v) {' +
+  '  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);' +
+  '  vec2 i = floor(v + dot(v, C.yy));' +
+  '  vec2 x0 = v - i + dot(i, C.xx);' +
+  '  vec2 i1;' +
+  '  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);' +
+  '  vec4 x12 = x0.xyxy + C.xxzz;' +
+  '  x12.xy -= i1;' +
+  '  i = mod289(i);' +
+  '  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));' +
+  '  vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);' +
+  '  m = m*m; m = m*m;' +
+  '  vec3 x = 2.0 * fract(p * C.www) - 1.0;' +
+  '  vec3 h = abs(x) - 0.5;' +
+  '  vec3 ox = floor(x + 0.5);' +
+  '  vec3 a0 = x - ox;' +
+  '  m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);' +
+  '  vec3 g;' +
+  '  g.x = a0.x * x0.x + h.x * x0.y;' +
+  '  g.yz = a0.yz * x12.xz + h.yz * x12.yw;' +
+  '  return 130.0 * dot(m, g);' +
+  '}' +
+  'mat2 rotate2D(float r) { return mat2(cos(r), sin(r), -sin(r), cos(r)); }' +
+  'float surface_noise(vec2 uv, float t, float scale) {' +
+  '  vec2 n = vec2(0.1);' +
+  '  vec2 N = vec2(0.1);' +
+  '  mat2 m = rotate2D(0.5);' +
+  '  for (int j = 0; j < 5; j++) {' +
+  '    uv *= m; n *= m;' +
+  '    vec2 q = uv * scale + float(j) + n + (0.5 + 0.5 * float(j)) * (mod(float(j), 2.0) - 1.0) * t;' +
+  '    n += sin(q);' +
+  '    N += cos(q) / scale;' +
+  '    scale *= 1.2;' +
+  '  }' +
+  '  return (N.x + N.y + 0.1);' +
+  '}' +
+  'void main() {' +
+  '  vec2 uv = vUv;' +
+  '  uv.y = 1.0 - uv.y;' +
+  '  uv.x *= u_ratio;' +
+  '  float t = 0.002 * u_time;' +
+  '  float outer_noise = snoise((0.3 + 0.1 * sin(t)) * uv + vec2(0.0, 0.2 * t));' +
+  '  vec2 surface_noise_uv = 2.0 * uv + (outer_noise * 0.2);' +
+  '  float sn = surface_noise(surface_noise_uv, t, u_scale);' +
+  '  sn *= pow(uv.y, 0.3);' +
+  '  sn = pow(sn, 2.0);' +
+  '  vec3 color = u_base_color * (1.0 + u_illumination * sn);' +
+  '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
+  '  float shadow = smoothstep(0.15, 0.0, sn);' +
+  '  color -= shadow * (0.3 + u_illumination) * vec3(0.04, 0.12, 0.16);' +
+  '  gl_FragColor = vec4(color, 1.0);' +
+  '}';
+
+const waterMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    u_time: { value: 0 },
+    u_ratio: { value: FIXED_ASPECT },
+    u_blueish: { value: SBM_WATER_PARAMS.blueish },
+    u_scale: { value: SBM_WATER_PARAMS.scale },
+    u_illumination: { value: SBM_WATER_PARAMS.illumination },
+    u_base_color: { value: SBM_WATER_BASE_COLOR }
+  },
+  vertexShader: SBM_WATER_VERT_SRC,
+  fragmentShader: SBM_WATER_FRAG_SRC
+});
+const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(backdropWidth, backdropHeight), waterMaterial);
+backdrop.position.set(0, 0, -BACKDROP_DIST);
+scene.add(backdrop);
+loadingEl.classList.add('hidden'); // 절차적 셰이더뿐이라 기다릴 텍스처 로딩이 없다
+
+// ------------------------------------------------------------
+// 후처리 - RenderPass + 비네트.
+// ------------------------------------------------------------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const vignettePass = new ShaderPass(VignetteShader);
+composer.addPass(vignettePass);
+composer.addPass(new OutputPass());
+
+// ------------------------------------------------------------
+// 프리셋 - 이 페이지는 조정 가능한 설정이 없어서, "저장"은 이 배경 페이지로
+// 연결되는 링크(sceneUrl)를 이름 붙여 즐겨찾기해두는 것과 같다. index.html/
+// ski-resort.html/fireworks.html/meteor-lake.html의 프리셋과 로컬 저장소를 공유한다.
+// ------------------------------------------------------------
+const PRESETS_KEY = 'interior3dViewer.presets';
+let presets = {};
+try {
+  presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
+} catch (e) { presets = {}; }
+
+function getCurrentConfig() {
+  return { sceneUrl: 'ocean-pool.html' };
+}
+function encodePreset(cfg) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+}
+function applyConfig(cfg) {
+  if (cfg.sceneUrl) {
+    window.location.href = cfg.sceneUrl;
+    return;
+  }
+  window.location.href = 'index.html?preset=' + encodePreset(cfg);
+}
+function savePresetsToStorage() {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise(function (resolve, reject) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      resolve();
+    } catch (e) { reject(e); }
+  });
+}
+
+let isAdminForGallery = false;
+
+function renderPresetList() {
+  const root = document.getElementById('presetList');
+  root.innerHTML = '';
+  const names = Object.keys(presets);
+  if (names.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'preset-empty';
+    empty.textContent = '저장된 프리셋이 없습니다';
+    root.appendChild(empty);
+    return;
+  }
+  names.forEach(function (name) {
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const label = document.createElement('span');
+    label.className = 'preset-name';
+    label.textContent = name;
+    label.title = name + ' (더블클릭하여 이름 변경)';
+    label.addEventListener('dblclick', function () {
+      const newName = window.prompt('새 이름을 입력하세요:', name);
+      if (newName === null) return;
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === name) return;
+      if (presets[trimmed] && !window.confirm('"' + trimmed + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+      const cfg = presets[name];
+      delete presets[name];
+      presets[trimmed] = cfg;
+      savePresetsToStorage();
+      renderPresetList();
+    });
+    row.appendChild(label);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'preset-btn';
+    applyBtn.type = 'button';
+    applyBtn.textContent = '적용';
+    applyBtn.addEventListener('click', function () { applyConfig(presets[name]); });
+    row.appendChild(applyBtn);
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'preset-btn';
+    shareBtn.type = 'button';
+    shareBtn.textContent = '공유';
+    shareBtn.title = '이 프리셋의 공유 링크를 클립보드에 복사';
+    shareBtn.addEventListener('click', function () {
+      const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?preset=' + encodePreset(presets[name]);
+      copyToClipboard(url).then(function () {
+        shareBtn.textContent = '복사됨!';
+        setTimeout(function () { shareBtn.textContent = '공유'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(shareBtn);
+
+    const obsBtn = document.createElement('button');
+    obsBtn.className = 'preset-btn';
+    obsBtn.type = 'button';
+    obsBtn.textContent = 'OBS';
+    obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+    obsBtn.addEventListener('click', function () {
+      const dir = location.pathname.replace(/[^/]*$/, '');
+      const url = presets[name].sceneUrl
+        ? location.origin + dir + presets[name].sceneUrl + '?obs=1'
+        : location.origin + dir + 'index.html?preset=' + encodePreset(presets[name]) + '&obs=1';
+      copyToClipboard(url).then(function () {
+        obsBtn.textContent = '복사됨!';
+        setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(obsBtn);
+
+    if (isAdminForGallery) {
+      const publishBtn = document.createElement('button');
+      publishBtn.className = 'preset-btn';
+      publishBtn.type = 'button';
+      publishBtn.textContent = '게시';
+      publishBtn.title = '모두가 볼 수 있는 공개 갤러리에 올리기';
+      publishBtn.addEventListener('click', function () {
+        publishPresetFn({ name: name, config: presets[name] }).then(function () {
+          publishBtn.textContent = '게시됨!';
+          setTimeout(function () { publishBtn.textContent = '게시'; }, 1500);
+        }).catch(function (err) {
+          console.error('갤러리 게시 실패:', err);
+          window.alert('갤러리 게시에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+      row.appendChild(publishBtn);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'preset-btn preset-btn--del';
+    delBtn.type = 'button';
+    delBtn.textContent = '✕';
+    delBtn.title = '삭제';
+    delBtn.addEventListener('click', function () {
+      delete presets[name];
+      savePresetsToStorage();
+      renderPresetList();
+    });
+    row.appendChild(delBtn);
+
+    root.appendChild(row);
+  });
+}
+
+document.getElementById('presetSaveBtn').addEventListener('click', function () {
+  const input = document.getElementById('presetNameInput');
+  let name = input.value.trim();
+  if (!name) name = '프리셋 ' + (Object.keys(presets).length + 1);
+  presets[name] = getCurrentConfig();
+  savePresetsToStorage();
+  renderPresetList();
+  input.value = '';
+});
+document.getElementById('presetNameInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') document.getElementById('presetSaveBtn').click();
+});
+renderPresetList();
+
+document.getElementById('addSceneLinkBtn').addEventListener('click', function () {
+  const name = window.prompt('프리셋 이름을 입력하세요 (예: 기본 프리셋 3):');
+  if (name === null || !name.trim()) return;
+  const url = window.prompt('연결할 배경 페이지 파일명을 입력하세요 (예: index.html):', 'index.html');
+  if (url === null) return;
+  const trimmedUrl = url.trim();
+  if (!/^[a-zA-Z0-9_-]+\.html$/.test(trimmedUrl)) {
+    window.alert('같은 폴더의 html 파일명만 입력할 수 있어요 (예: index.html).');
+    return;
+  }
+  const trimmedName = name.trim();
+  if (presets[trimmedName] && !window.confirm('"' + trimmedName + '" 이름이 이미 있습니다. 덮어쓸까요?')) return;
+  presets[trimmedName] = { sceneUrl: trimmedUrl };
+  savePresetsToStorage();
+  renderPresetList();
+});
+
+// ------------------------------------------------------------
+// 공개 갤러리 - 적용/OBS 버튼은 집계 호출 + sceneUrl 이동 시 로딩 오버레이를 통해
+// 응답을 기다린 뒤 이동한다(index.html/ski-resort.html/fireworks.html/meteor-lake.html과
+// 동일 패턴 - 곧바로 location.href를 바꾸면 집계 요청이 응답 전에 취소되는 문제가 있었다).
+// ------------------------------------------------------------
+function renderGallery(entries) {
+  lastGalleryEntries = entries;
+  const root = document.getElementById('galleryList');
+  root.innerHTML = '';
+  const keys = Object.keys(entries);
+  if (keys.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'preset-empty';
+    empty.textContent = '아직 게시된 프리셋이 없습니다';
+    root.appendChild(empty);
+    return;
+  }
+  keys.sort(function (a, b) { return (entries[b].createdAt || 0) - (entries[a].createdAt || 0); });
+  keys.forEach(function (key) {
+    const entry = entries[key];
+    if (!entry || !entry.config) return;
+
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+
+    const label = document.createElement('span');
+    label.className = 'preset-name';
+    label.textContent = entry.name || '(이름 없음)';
+    if (isAdminForGallery) {
+      label.title = (entry.name || '') + ' (더블클릭하여 이름 변경)';
+      label.style.cursor = 'pointer';
+      label.addEventListener('dblclick', function () {
+        const newName = window.prompt('새 이름을 입력하세요:', entry.name || '');
+        if (newName === null) return;
+        const trimmed = newName.trim();
+        if (!trimmed || trimmed === entry.name) return;
+        updatePresetFn({ id: key, name: trimmed, config: entry.config }).catch(function (err) {
+          console.error('갤러리 이름 변경 실패:', err);
+          window.alert('이름 변경에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+    } else {
+      label.title = entry.name || '';
+    }
+    row.appendChild(label);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'preset-btn';
+    applyBtn.type = 'button';
+    applyBtn.textContent = '적용';
+    applyBtn.addEventListener('click', function () {
+      const statsDone = incrementPresetApplyCountFn({ presetId: key }).catch(function (err) { console.error('적용 횟수 집계 실패:', err); }); // 통계용, 실패해도 실제 적용은 막지 않음
+      if (entry.config.sceneUrl) {
+        const sceneUrl = entry.config.sceneUrl;
+        const overlay = document.getElementById('sceneApplyOverlay');
+        if (overlay) overlay.hidden = false;
+        let navigated = false;
+        function goToScene() {
+          if (navigated) return;
+          navigated = true;
+          window.location.href = sceneUrl;
+        }
+        statsDone.then(goToScene);
+        setTimeout(goToScene, 5000);
+        return;
+      }
+      applyConfig(entry.config);
+    });
+    row.appendChild(applyBtn);
+
+    const obsBtn = document.createElement('button');
+    obsBtn.className = 'preset-btn';
+    obsBtn.type = 'button';
+    obsBtn.textContent = 'OBS';
+    obsBtn.title = 'OBS 브라우저 소스용 링크 복사 - 추가하자마자 패널·상단바 없이 꽉 찬 화면으로 시작';
+    obsBtn.addEventListener('click', function () {
+      incrementPresetObsLinkCountFn({ presetId: key }).catch(function (err) { console.error('OBS 링크 집계 실패:', err); }); // 통계용, 실패해도 실제 복사는 막지 않음
+      const dir = location.pathname.replace(/[^/]*$/, '');
+      const url = entry.config.sceneUrl
+        ? location.origin + dir + entry.config.sceneUrl + '?obs=1'
+        : location.origin + dir + 'index.html?preset=' + encodePreset(entry.config) + '&obs=1';
+      copyToClipboard(url).then(function () {
+        obsBtn.textContent = '복사됨!';
+        setTimeout(function () { obsBtn.textContent = 'OBS'; }, 1500);
+      }).catch(function () {
+        window.prompt('아래 URL을 복사하세요:', url);
+      });
+    });
+    row.appendChild(obsBtn);
+
+    if (isAdminForGallery) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'preset-btn preset-btn--del';
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.title = '게시물 삭제';
+      delBtn.addEventListener('click', function () {
+        if (!window.confirm('"' + (entry.name || '') + '" 게시물을 삭제할까요?')) return;
+        deletePresetFn({ id: key }).catch(function (err) {
+          console.error('갤러리 삭제 실패:', err);
+          window.alert('삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        });
+      });
+      row.appendChild(delBtn);
+    }
+
+    root.appendChild(row);
+  });
+}
+let lastGalleryEntries = null;
+onValue(galleryRef, function (snapshot) {
+  renderGallery(snapshot.val() || {});
+}, function (err) {
+  console.error('presetGallery 읽기 실패:', err);
+  const root = document.getElementById('galleryList');
+  root.innerHTML = '';
+  const errEl = document.createElement('p');
+  errEl.className = 'preset-empty';
+  errEl.textContent = '갤러리를 불러올 수 없습니다 (Firebase 규칙 확인 필요)';
+  root.appendChild(errEl);
+});
+
+// ------------------------------------------------------------
+// 계정 상태 - 익명/Google 로그인 (다른 배경 페이지들과 동일한 세션을 공유)
+// ------------------------------------------------------------
+const authStatusEl = document.getElementById('authStatus');
+const authBtnEl = document.getElementById('authBtn');
+
+function renderGalleryOwnership() {
+  if (lastGalleryEntries) renderGallery(lastGalleryEntries);
+}
+
+function updateAuthUI(detail) {
+  isAdminForGallery = !!(detail && detail.isAdmin);
+  authBtnEl.disabled = false;
+  if (detail && detail.isRealAccount) {
+    authStatusEl.textContent = isAdminForGallery ? '로그인됨 (관리자)' : '로그인됨';
+    authBtnEl.textContent = '로그아웃';
+  } else {
+    authStatusEl.textContent = '익명 사용자';
+    authBtnEl.textContent = 'Google 로그인';
+  }
+  document.getElementById('addSceneLinkBtn').style.display = isAdminForGallery ? '' : 'none';
+  document.getElementById('localPresetSection').style.display = isAdminForGallery ? '' : 'none';
+  renderPresetList();
+  renderGalleryOwnership();
+}
+
+authBtnEl.addEventListener('click', function () {
+  if (firebaseAuthApi.isRealAccount()) firebaseAuthApi.signOut();
+  else firebaseAuthApi.signIn();
+});
+
+onAuthStateChanged(auth, async function (user) {
+  currentUser = user;
+  if (user && !user.isAnonymous) {
+    try {
+      const result = await whoAmIFn();
+      isAdminCached = !!(result.data && result.data.isAdmin);
+    } catch (err) {
+      console.error('관리자 여부 확인 실패:', err);
+      isAdminCached = false;
+    }
+  } else {
+    isAdminCached = false;
+  }
+  updateAuthUI({
+    isRealAccount: !!(user && !user.isAnonymous),
+    isAdmin: isAdminCached
+  });
+  if (!user) {
+    signInAnonymously(auth).catch(function (err) { console.error('익명 로그인 실패:', err); });
+  }
+});
+
+// ------------------------------------------------------------
+// 리사이즈 - 16:9 고정, 레터박스 (다른 배경 페이지와 동일한 규칙)
+// ------------------------------------------------------------
+function fitCanvas() {
+  const rect = appEl.getBoundingClientRect();
+  const ww = rect.width, wh = rect.height;
+  let w, h;
+  if (ww / wh > FIXED_ASPECT) { h = wh; w = h * FIXED_ASPECT; }
+  else { w = ww; h = w / FIXED_ASPECT; }
+  const pr = Math.min(window.devicePixelRatio, 2);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+}
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
+
+// ------------------------------------------------------------
+// OBS 감지 - 실제 방송 캡처 중이면 devbar/패널을 숨겨서 화면을 깨끗하게 유지.
+// ------------------------------------------------------------
+const inOBS = !!window.obsstudio || new URLSearchParams(location.search).get('obs') === '1';
+if (inOBS) {
+  sidePanel.style.display = 'none';
+  document.getElementById('devbar').style.display = 'none';
+  fitCanvas();
+}
+
+// ------------------------------------------------------------
+// 더블클릭으로 전체화면 전환/복귀 (다른 배경 페이지들과 동일한 동작)
+// ------------------------------------------------------------
+canvas.addEventListener('dblclick', function () {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen().catch(function (err) {
+      console.error('전체화면 전환 실패:', err);
+    });
+  }
+});
+
+const devbarEl = document.getElementById('devbar');
+document.addEventListener('fullscreenchange', function () {
+  if (inOBS) return;
+  const fs = !!document.fullscreenElement;
+  sidePanel.style.display = fs ? 'none' : '';
+  devbarEl.style.display = fs ? 'none' : '';
+  fitCanvas();
+});
+
+// ------------------------------------------------------------
+// devbar 자동 스크롤 (넘칠 때만)
+// ------------------------------------------------------------
+(function setupDevbarMarquee() {
+  const viewport = document.getElementById('devbarViewport');
+  const track = document.getElementById('devbarTrack');
+  if (!viewport || !track) return;
+  function rebuild() {
+    track.querySelectorAll('[data-clone]').forEach(function (el) { el.remove(); });
+    track.classList.remove('auto-scroll');
+    track.style.removeProperty('--devbar-duration');
+    if (track.scrollWidth <= viewport.clientWidth) return;
+    const originalWidth = track.scrollWidth;
+    Array.prototype.slice.call(track.children).forEach(function (child) {
+      const clone = child.cloneNode(true);
+      clone.setAttribute('data-clone', 'true');
+      clone.setAttribute('aria-hidden', 'true');
+      clone.setAttribute('tabindex', '-1');
+      track.appendChild(clone);
+    });
+    const duration = Math.max(8, originalWidth / 40);
+    track.style.setProperty('--devbar-duration', duration + 's');
+    track.classList.add('auto-scroll');
+  }
+  rebuild();
+  let resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(rebuild, 200);
+  });
+})();
+
+// ------------------------------------------------------------
+// 패널 드래그 이동 (다른 배경 페이지들과 동일한 방식, 위치도 같은 키로 공유)
+// ------------------------------------------------------------
+const PANEL_POS_KEY = 'interior3dViewer.panelPos';
+let panelDragging = false;
+let panelDragOffsetX = 0, panelDragOffsetY = 0;
+
+function clampPanelPos(left, top) {
+  const rect = sidePanel.getBoundingClientRect();
+  const appRect = appEl.getBoundingClientRect();
+  const margin = 40;
+  const maxLeft = appRect.width - margin;
+  const maxTop = appRect.height - margin;
+  const minLeft = margin - rect.width;
+  return [
+    Math.max(minLeft, Math.min(maxLeft, left)),
+    Math.max(0, Math.min(maxTop, top))
+  ];
+}
+function setPanelPosition(left, top) {
+  sidePanel.style.left = left + 'px';
+  sidePanel.style.top = top + 'px';
+  sidePanel.style.right = 'auto';
+  sidePanel.style.transform = 'none';
+}
+function stopPanelDrag() { panelDragging = false; }
+
+panelHandle.addEventListener('pointerdown', function (e) {
+  panelDragging = true;
+  const rect = sidePanel.getBoundingClientRect();
+  panelDragOffsetX = e.clientX - rect.left;
+  panelDragOffsetY = e.clientY - rect.top;
+  panelHandle.setPointerCapture(e.pointerId);
+});
+panelHandle.addEventListener('pointermove', function (e) {
+  if (!panelDragging) return;
+  if ((e.buttons & 1) === 0) { stopPanelDrag(); return; }
+  const appRect = appEl.getBoundingClientRect();
+  const clamped = clampPanelPos(e.clientX - panelDragOffsetX - appRect.left, e.clientY - panelDragOffsetY - appRect.top);
+  setPanelPosition(clamped[0], clamped[1]);
+});
+panelHandle.addEventListener('pointerup', function (e) {
+  if (!panelDragging) return;
+  stopPanelDrag();
+  const rect = sidePanel.getBoundingClientRect();
+  const appRect = appEl.getBoundingClientRect();
+  localStorage.setItem(PANEL_POS_KEY, JSON.stringify({ left: rect.left - appRect.left, top: rect.top - appRect.top }));
+  try { panelHandle.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+panelHandle.addEventListener('pointercancel', stopPanelDrag);
+
+(function restorePanelPosition() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(PANEL_POS_KEY)); } catch (e) {}
+  if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+    const clamped = clampPanelPos(saved.left, saved.top);
+    setPanelPosition(clamped[0], clamped[1]);
+  }
+})();
+
+window.addEventListener('resize', function () {
+  if (sidePanel.style.left && sidePanel.style.left !== 'auto') {
+    const rect = sidePanel.getBoundingClientRect();
+    const appRect = appEl.getBoundingClientRect();
+    const clamped = clampPanelPos(rect.left - appRect.left, rect.top - appRect.top);
+    setPanelPosition(clamped[0], clamped[1]);
+  }
+});
+
+// ------------------------------------------------------------
+// 렌더 루프 - 카메라는 완전히 고정. 수면 셰이더의 시간 유니폼만 매 프레임 갱신.
+// ------------------------------------------------------------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  waterMaterial.uniforms.u_time.value = clock.elapsedTime * 1000;
+  composer.render();
+}
+animate();
+</script>
+</body>
+</html>
