@@ -497,26 +497,6 @@ const sidePanel = document.getElementById('sidePanel');
 const panelHandle = document.getElementById('panelHandle');
 const appEl = document.getElementById('app');
 
-// ------------------------------------------------------------
-// 후보정 셰이더 - 비네트. 다른 배경 페이지들과 동일(블룸·틸트시프트는 화면 전체가
-// 한 평면 위의 물결이라 초점/광원 구분이 없어 이 씬에는 의미가 없어 생략).
-// ------------------------------------------------------------
-const VignetteShader = {
-  uniforms: { tDiffuse: { value: null }, darkness: { value: 1.1 } },
-  vertexShader:
-    'varying vec2 vUv;' +
-    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader:
-    'precision mediump float;' +
-    'uniform sampler2D tDiffuse; uniform float darkness; varying vec2 vUv;' +
-    'void main() {' +
-    '  vec4 texel = texture2D(tDiffuse, vUv);' +
-    '  vec2 uv = vUv - 0.5;' +
-    '  float vig = 1.0 - dot(uv, uv) * darkness;' +
-    '  gl_FragColor = vec4(texel.rgb * clamp(vig, 0.0, 1.0), texel.a);' +
-    '}'
-};
-
 // 정석 틸트시프트 블러 - 이 맵은 정확한 탑뷰라, 항공/드론 사진을 미니어처처럼
 // 보이게 하는 틸트시프트 기법을 그대로 적용한다. 화면 세로축(vUv.y) 기준으로
 // u_tilt_center 주변 u_tilt_focus 폭만큼은 완전히 선명(블러 0)하게 두고, 거기서
@@ -665,9 +645,9 @@ const SBM_WATER_FRAG_SRC =
   '  vec2 cell_id = floor(grid);' +
   '  vec2 cell_uv = fract(grid);' +
   '  float r = hash21(cell_id);' +
-  '  vec3 light_tile = vec3(0.78, 0.93, 0.99);' +
-  '  vec3 mid_tile = vec3(0.46, 0.80, 0.94);' +
-  '  vec3 deep_tile = vec3(0.18, 0.55, 0.76);' +
+  '  vec3 light_tile = vec3(0.83, 0.98, 1.0);' +
+  '  vec3 mid_tile = vec3(0.51, 0.85, 0.99);' +
+  '  vec3 deep_tile = vec3(0.23, 0.60, 0.81);' +
   '  vec3 col = mix(mid_tile, light_tile, smoothstep(0.15, 0.85, r));' +
   '  col = mix(col, deep_tile, smoothstep(0.86, 0.94, r));' +
   '  float edge = min(min(cell_uv.x, 1.0 - cell_uv.x), min(cell_uv.y, 1.0 - cell_uv.y));' +
@@ -725,14 +705,12 @@ scene.add(backdrop);
 loadingEl.classList.add('hidden'); // 절차적 셰이더뿐이라 기다릴 텍스처 로딩이 없다
 
 // ------------------------------------------------------------
-// 후처리 - RenderPass + 약한 블러 + 비네트.
+// 후처리 - RenderPass + 틸트시프트 블러.
 // ------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const blurPass = new ShaderPass(BlurShader);
 composer.addPass(blurPass);
-const vignettePass = new ShaderPass(VignetteShader);
-composer.addPass(vignettePass);
 composer.addPass(new OutputPass());
 
 // ------------------------------------------------------------
