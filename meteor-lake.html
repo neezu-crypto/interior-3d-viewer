@@ -352,6 +352,13 @@
 //   2) 하단 마을·호숫가 불빛 위치에 작은 반짝임 파티클을 흩뿌려 랜덤 트윙클.
 //   3) 틸트시프트 블러의 초점(r)을 화면 중앙이 아니라 운석 머리 위치로 맞춘다.
 // 운석 경로 좌표는 원본 이미지(1672x941)를 픽셀 단위로 분석해 뽑아낸 값이다.
+// 머리 불꽃(getFlameSprite)의 "삐죽삐죽한 다각형 + 방사형 그라디언트" 기법은
+// CodePen "Meteor js Canvas"(Vo Hai Dang, MIT, https://codepen.io/haidang/pen/xWGgLd)
+// 의 Rock/Meteor 렌더링 아이디어를 Three.js 캔버스 텍스처로 옮긴 것이다. 꼬리의
+// 다색(시안·블루·보라·마젠타) 팔레트는 CodePen "Crystal, meteor, fire"
+// (Wikyware Net, MIT, https://codepen.io/wikyware-net/pen/MWjjxdL)의 색감을
+// 참고했다 — 그 펜 자체는 외부 스프라이트 시트 이미지만 애니메이션하는 순수 CSS라
+// 재사용할 코드는 없었고, 색이 화려하게 섞이는 느낌만 팔레트에 반영했다.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -554,10 +561,51 @@ function getSprite() {
   cvs.width = size; cvs.height = size;
   const ctx = cvs.getContext('2d');
   ctx.fillStyle = fillGaussianRadial(ctx, cx, cy, r, function (t) {
+    // t=1(반지름 끝)에서 정확히 0으로 떨어뜨려야 한다 - 아주 살짝이라도 남으면
+    // fillRect가 반지름 바깥 네 모서리까지 그 마지막 색으로 "연장"해서 칠해버려,
+    // 스프라이트를 크게 확대했을 때(예: 앰비언트 플레어 글로우) 흐릿한 사각형
+    // 테두리가 비쳐 보이는 버그가 있었다.
+    if (t >= 0.999) return 0;
     return Math.exp(-t * t * 7.0) + 0.55 * Math.exp(-t * t * 2.2);
   });
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(cvs);
+}
+
+// 운석 머리 불꽃 - 매끈한 원형 대신, 흔들리는 불꽃/크리스탈처럼 보이도록 각 점의
+// 반지름을 무작위로 흩트린 삐죽삐죽한 다각형에 따뜻한 방사형 그라디언트를 채운다
+// (CodePen "Meteor js Canvas", Vo Hai Dang, MIT — 삐죽삐죽한 폴리곤으로 불티/암석
+// 덩어리를 표현하는 기법을 그대로 가져오되, 여기선 파티클이 아니라 스프라이트
+// 텍스처 하나로 굽는다). seed가 다른 텍스처 여러 장을 만들어 회전시키면 매 프레임
+// 다시 그리지 않고도 살아있는 듯한 불꽃 흔들림을 흉내낼 수 있다.
+function getFlameSprite(seed) {
+  const size = 160, cx = size / 2, cy = size / 2;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  let s = seed;
+  function rand() { s = (s * 9301 + 49297) % 233280; return s / 233280; }
+  const points = 14;
+  const path = [];
+  for (let i = 0; i < points; i++) {
+    const angle = (i / points) * Math.PI * 2;
+    const jag = 0.5 + rand() * 0.65;
+    // 세로로 조금 늘려서 위로 치솟는 불꽃 실루엣에 가깝게
+    path.push([cx + Math.cos(angle) * size * 0.34 * jag, cy + Math.sin(angle) * size * 0.4 * jag]);
+  }
+  ctx.beginPath();
+  path.forEach(function (p, i) { i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); });
+  ctx.closePath();
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
+  grad.addColorStop(0, 'rgba(255,255,240,1)');
+  grad.addColorStop(0.3, 'rgba(255,214,130,0.95)');
+  grad.addColorStop(0.62, 'rgba(255,130,70,0.6)');
+  grad.addColorStop(1, 'rgba(255,60,50,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.anisotropy = 4;
+  return tex;
 }
 
 // ------------------------------------------------------------
@@ -647,18 +695,32 @@ function pointOnCometPath(t) {
 
 // 꼬리를 따라 흐르는 파티클 - 각자 0~1 진행도(t)를 갖고 tail→head로 계속 나아가다
 // 머리에 닿으면 다시 꼬리 쪽으로 되돌아가 반복한다(위치는 고정, 흐름만 반복).
-const COMET_FLOW_COUNT = 240;
+// 꼬리 색 팔레트 - 단조로운 3색 그라디언트 대신, 원본 일러스트의 시안/블루/보라/
+// 마젠타가 뒤섞인 느낌을 살리려고 5개 색상 정지점을 쓰고, 일부 파티클은 아예
+// 마젠타 계열로 튀게 해서 "다양한 색 표현"을 낸다("Crystal, meteor, fire" 참고 -
+// 그 펜 자체는 외부 스프라이트 시트라 코드를 그대로 가져올 게 없어서, 색감이
+// 화려하게 섞이는 느낌만 참고해 여기 파티클 팔레트에 반영했다).
+const COMET_FLOW_COUNT = 320;
 const cometFlowGeo = new THREE.BufferGeometry();
 const cometFlowPos = new Float32Array(COMET_FLOW_COUNT * 3);
 const cometFlowColor = new Float32Array(COMET_FLOW_COUNT * 3);
 const cometFlowT = new Float32Array(COMET_FLOW_COUNT);
 const cometFlowSpeed = new Float32Array(COMET_FLOW_COUNT);
-const colorTail = new THREE.Color(0x6fd8ff);
-const colorMid = new THREE.Color(0xb98cff);
-const colorHead = new THREE.Color(0xfff2e0);
+const cometFlowPhase = new Float32Array(COMET_FLOW_COUNT);
+const cometFlowMagenta = new Uint8Array(COMET_FLOW_COUNT);
+const TAIL_PALETTE = [
+  new THREE.Color(0x2f6fe0), // 짙은 인디고
+  new THREE.Color(0x4fb8f0), // 시안 블루
+  new THREE.Color(0x8fd8ff), // 밝은 하늘색
+  new THREE.Color(0xd6b3ff), // 연보라
+  new THREE.Color(0xfff2e0)  // 머리 근처 흰빛
+];
+const TAIL_MAGENTA = new THREE.Color(0xff6ad5); // 마젠타 악센트(일부 파티클만)
 for (let i = 0; i < COMET_FLOW_COUNT; i++) {
   cometFlowT[i] = Math.random();
   cometFlowSpeed[i] = 0.05 + Math.random() * 0.05;
+  cometFlowPhase[i] = Math.random() * Math.PI * 2;
+  cometFlowMagenta[i] = Math.random() < 0.16 ? 1 : 0; // 16%는 마젠타 악센트로 튀게
 }
 cometFlowGeo.setAttribute('position', new THREE.BufferAttribute(cometFlowPos, 3));
 cometFlowGeo.setAttribute('color', new THREE.BufferAttribute(cometFlowColor, 3));
@@ -669,8 +731,13 @@ const cometFlowMat = new THREE.PointsMaterial({
 const cometFlowPoints = new THREE.Points(cometFlowGeo, cometFlowMat);
 scene.add(cometFlowPoints);
 
+function tailColorAt(t) {
+  const scaled = THREE.MathUtils.clamp(t, 0, 1) * (TAIL_PALETTE.length - 1);
+  const idx = Math.min(TAIL_PALETTE.length - 2, Math.floor(scaled));
+  return TAIL_PALETTE[idx].clone().lerp(TAIL_PALETTE[idx + 1], scaled - idx);
+}
 const cometFlowScratchColor = new THREE.Color();
-function updateCometFlow(dt) {
+function updateCometFlow(dt, time) {
   const posAttr = cometFlowGeo.attributes.position;
   const colorAttr = cometFlowGeo.attributes.color;
   for (let i = 0; i < COMET_FLOW_COUNT; i++) {
@@ -678,14 +745,16 @@ function updateCometFlow(dt) {
     if (cometFlowT[i] > 1) {
       cometFlowT[i] -= 1;
       cometFlowSpeed[i] = 0.05 + Math.random() * 0.05;
+      cometFlowMagenta[i] = Math.random() < 0.16 ? 1 : 0;
     }
     const t = cometFlowT[i];
     const p = pointOnCometPath(t);
     posAttr.setXYZ(i, p.x, p.y, p.z);
-    // 양 끝은 옅게 페이드, 가운데는 또렷하게
+    // 양 끝은 옅게 페이드, 가운데는 또렷하게 + 반짝이는 셔머(개별 위상의 사인파)
     const edgeFade = Math.min(1, t * 5) * Math.min(1, (1 - t) * 5 + 0.15);
-    cometFlowScratchColor.copy(t < 0.5 ? colorTail : colorMid).lerp(t < 0.5 ? colorMid : colorHead, (t < 0.5 ? t : t - 0.5) * 2);
-    cometFlowScratchColor.multiplyScalar(edgeFade);
+    const shimmer = 0.75 + Math.sin(time * 2.4 + cometFlowPhase[i]) * 0.25;
+    cometFlowScratchColor.copy(cometFlowMagenta[i] ? TAIL_MAGENTA : tailColorAt(t));
+    cometFlowScratchColor.multiplyScalar(edgeFade * shimmer);
     colorAttr.setXYZ(i, cometFlowScratchColor.r, cometFlowScratchColor.g, cometFlowScratchColor.b);
   }
   posAttr.needsUpdate = true;
@@ -698,67 +767,101 @@ const headWorld = imgToWorld(COMET_HEAD_PX[0], COMET_HEAD_PX[1], 0.8);
 const preHeadWorld = cometPathWorld[cometPathWorld.length - 2];
 const emberDir = new THREE.Vector3().subVectors(headWorld, preHeadWorld).normalize();
 
-const COMET_EMBER_COUNT = 70;
-const emberGeo = new THREE.BufferGeometry();
-const emberPos = new Float32Array(COMET_EMBER_COUNT * 3);
-const emberColor = new Float32Array(COMET_EMBER_COUNT * 3);
-const emberVel = new Float32Array(COMET_EMBER_COUNT * 3);
-const emberLife = new Float32Array(COMET_EMBER_COUNT);
-const colorEmberWarm = new THREE.Color(0xffd9a0);
-const colorEmberHot = new THREE.Color(0xff6a3d);
-
-function resetEmber(i) {
-  const i3 = i * 3;
-  emberPos[i3] = headWorld.x; emberPos[i3 + 1] = headWorld.y; emberPos[i3 + 2] = headWorld.z;
-  const spread = 0.5;
-  const speed = 1.6 + Math.random() * 1.8;
-  emberVel[i3] = emberDir.x * speed + (Math.random() - 0.5) * spread;
-  emberVel[i3 + 1] = emberDir.y * speed + (Math.random() - 0.5) * spread;
-  emberVel[i3 + 2] = emberDir.z * speed + (Math.random() - 0.5) * spread * 0.3;
-  emberLife[i] = 0;
-}
-for (let i = 0; i < COMET_EMBER_COUNT; i++) { resetEmber(i); emberLife[i] = Math.random(); }
-emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
-emberGeo.setAttribute('color', new THREE.BufferAttribute(emberColor, 3));
-const emberMat = new THREE.PointsMaterial({
-  size: 3.2, map: glowSprite, vertexColors: true,
-  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
-});
-const emberPoints = new THREE.Points(emberGeo, emberMat);
-scene.add(emberPoints);
-
-const emberScratchColor = new THREE.Color();
-function updateEmbers(dt) {
-  const posAttr = emberGeo.attributes.position;
-  const colorAttr = emberGeo.attributes.color;
-  for (let i = 0; i < COMET_EMBER_COUNT; i++) {
-    emberLife[i] += dt * 0.7;
-    if (emberLife[i] > 1) resetEmber(i);
+// 이젝션 파티클 두 겹 - 크고 느린 "불티"(ember)와 작고 빠른 "스파크"를 같이 뿜어서
+// 밀도감을 준다(단일 레이어일 때보다 훨씬 덜 밋밋하다).
+function makeEjectionLayer(count, opts) {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  const color = new Float32Array(count * 3);
+  const vel = new Float32Array(count * 3);
+  const life = new Float32Array(count);
+  function reset(i) {
     const i3 = i * 3;
-    emberPos[i3] += emberVel[i3] * dt;
-    emberPos[i3 + 1] += emberVel[i3 + 1] * dt;
-    emberPos[i3 + 2] += emberVel[i3 + 2] * dt;
-    posAttr.setXYZ(i, emberPos[i3], emberPos[i3 + 1], emberPos[i3 + 2]);
-    const fade = 1 - emberLife[i];
-    emberScratchColor.copy(colorEmberWarm).lerp(colorEmberHot, emberLife[i]).multiplyScalar(fade);
-    colorAttr.setXYZ(i, emberScratchColor.r, emberScratchColor.g, emberScratchColor.b);
+    pos[i3] = headWorld.x; pos[i3 + 1] = headWorld.y; pos[i3 + 2] = headWorld.z;
+    const speed = opts.speedMin + Math.random() * opts.speedRange;
+    vel[i3] = emberDir.x * speed + (Math.random() - 0.5) * opts.spread;
+    vel[i3 + 1] = emberDir.y * speed + (Math.random() - 0.5) * opts.spread;
+    vel[i3 + 2] = emberDir.z * speed + (Math.random() - 0.5) * opts.spread * 0.3;
+    life[i] = 0;
   }
-  posAttr.needsUpdate = true;
-  colorAttr.needsUpdate = true;
+  for (let i = 0; i < count; i++) { reset(i); life[i] = Math.random(); }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(color, 3));
+  const mat = new THREE.PointsMaterial({
+    size: opts.size, map: glowSprite, vertexColors: true,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+  const scratch = new THREE.Color();
+  function update(dt) {
+    const posAttr = geo.attributes.position;
+    const colorAttr = geo.attributes.color;
+    for (let i = 0; i < count; i++) {
+      life[i] += dt * opts.fadeSpeed;
+      if (life[i] > 1) reset(i);
+      const i3 = i * 3;
+      pos[i3] += vel[i3] * dt;
+      pos[i3 + 1] += vel[i3 + 1] * dt;
+      pos[i3 + 2] += vel[i3 + 2] * dt;
+      posAttr.setXYZ(i, pos[i3], pos[i3 + 1], pos[i3 + 2]);
+      const fade = 1 - life[i];
+      scratch.copy(opts.colorStart).lerp(opts.colorEnd, life[i]).multiplyScalar(fade);
+      colorAttr.setXYZ(i, scratch.r, scratch.g, scratch.b);
+    }
+    posAttr.needsUpdate = true;
+    colorAttr.needsUpdate = true;
+  }
+  return update;
+}
+const updateEmbersBig = makeEjectionLayer(70, {
+  size: 3.6, speedMin: 1.6, speedRange: 1.8, spread: 0.5, fadeSpeed: 0.7,
+  colorStart: new THREE.Color(0xffd9a0), colorEnd: new THREE.Color(0xff6a3d)
+});
+const updateEmbersSpark = makeEjectionLayer(90, {
+  size: 1.6, speedMin: 3.2, speedRange: 3.4, spread: 0.9, fadeSpeed: 1.6,
+  colorStart: new THREE.Color(0xffffff), colorEnd: new THREE.Color(0xffe6a8)
+});
+function updateEmbers(dt) {
+  updateEmbersBig(dt);
+  updateEmbersSpark(dt);
 }
 
-const headGlowMat = new THREE.SpriteMaterial({
-  map: glowSprite, color: 0xfff2d0, transparent: true,
-  depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55
+// 운석 머리 - 삐죽삐죽한 불꽃 스프라이트 3장을 서로 다른 속도로 회전·맥동시켜서
+// (매 프레임 다시 그리지 않고도) 흔들리는 불꽃처럼 보이게 하고, 그 뒤에 큰 앰비언트
+// 광원(LightFlare 기법 — 부드러운 방사형 그라디언트 한 장)을 깔아 은은하게 밝힌다.
+const flameTextures = [11, 47, 93].map(getFlameSprite);
+const flameSprites = flameTextures.map(function (tex, idx) {
+  const mat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, opacity: 0.8
+  });
+  const spr = new THREE.Sprite(mat);
+  spr.position.copy(headWorld);
+  spr.position.z += 0.05 * (idx + 1); // 살짝씩 다른 깊이로 어긋나게 둬서 여러 장 겹친 느낌
+  scene.add(spr);
+  return { sprite: spr, mat: mat, phase: idx * 2.1, rotSpeed: 0.35 + idx * 0.22, baseScale: 12 - idx * 1.4 };
 });
-const headGlow = new THREE.Sprite(headGlowMat);
-headGlow.position.copy(headWorld);
-headGlow.scale.set(15, 15, 1);
-scene.add(headGlow);
+const flareGlowMat = new THREE.SpriteMaterial({
+  map: glowSprite, color: 0xffe9c2, transparent: true,
+  depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.4
+});
+const flareGlow = new THREE.Sprite(flareGlowMat);
+flareGlow.position.copy(headWorld);
+flareGlow.scale.set(42, 42, 1);
+scene.add(flareGlow);
+
 function updateHeadGlow(t) {
-  const pulse = 0.85 + Math.sin(t * 3.2) * 0.15;
-  headGlow.scale.set(15 * pulse, 15 * pulse, 1);
-  headGlowMat.opacity = 0.4 + Math.sin(t * 3.2 + 1.0) * 0.15;
+  flameSprites.forEach(function (f) {
+    const pulse = 0.82 + Math.sin(t * 2.6 + f.phase) * 0.16 + Math.sin(t * 5.3 + f.phase * 1.7) * 0.08;
+    const scale = f.baseScale * pulse;
+    f.sprite.scale.set(scale, scale, 1);
+    f.mat.rotation = t * f.rotSpeed + f.phase;
+    f.mat.opacity = 0.55 + Math.sin(t * 3.1 + f.phase * 0.6) * 0.2;
+  });
+  const flarePulse = 1 + Math.sin(t * 1.7) * 0.08;
+  flareGlow.scale.set(42 * flarePulse, 42 * flarePulse, 1);
+  flareGlowMat.opacity = 0.32 + Math.sin(t * 1.7 + 0.6) * 0.08;
 }
 
 // ------------------------------------------------------------
@@ -1413,7 +1516,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   filmGrainPass.uniforms.uTime.value = t;
-  updateCometFlow(dt);
+  updateCometFlow(dt, t);
   updateEmbers(dt);
   updateHeadGlow(t);
   updateTwinkle(t);
