@@ -693,12 +693,21 @@ const SBM_WATER_FRAG_SRC =
   '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
   '  float shadow = smoothstep(0.15, 0.0, sn);' +
   '  color -= shadow * (0.3 + u_illumination) * vec3(0.04, 0.12, 0.16);' +
-  // 햇빛 반짝임 - 잔물결과는 독립적으로 더 빠르게 움직이는 simplex 노이즈를
-  // 아주 높은 지수로 눌러, 노이즈 봉우리 근처만 살아남는 희소한 밝은 점으로
-  // 만든다(실제 수면 위 햇빛 글린트처럼 반짝이며 움직임).
-  '  float t_glint = 0.015 * u_time;' +
-  '  float glint_n = snoise(uv * u_glint_scale + vec2(4.7, 8.3) + t_glint * vec2(0.8, 1.3));' +
-  '  float glint = pow(clamp(glint_n * 0.5 + 0.5, 0.0, 1.0), 14.0);' +
+  // 햇빛 반짝임 - 예전엔 시간에 따라 한쪽 방향으로 계속 흘러가는 단일 노이즈를
+  // 썼더니 "눈이 바람에 날리는" 것처럼 화면 전체가 한 방향으로 쓸려가 보였다.
+  // 이번엔 반짝일 후보 위치(glint_n)는 시간과 무관하게 고정해 두고, 그 자리마다
+  // 고유한 위상/속도로 밝기만 오르내리게(트윙클) 해서 위치는 그대로, 밝기만
+  // 깜빡이는 자연스러운 반짝임을 만든다.
+  '  float glint_n = snoise(uv * u_glint_scale + vec2(4.7, 8.3));' +
+  '  float glint_spot = pow(clamp(glint_n * 0.5 + 0.5, 0.0, 1.0), 14.0);' +
+  '  vec2 glint_cell = floor(uv * u_glint_scale);' +
+  '  float glint_seed = hash21(glint_cell);' +
+  // u_time은 밀리초 단위라 그대로 sin()에 넣으면 mediump 정밀도 한계를 넘어서
+  // 값이 깨진다(파일 전체가 항상 0.002~0.02배로 축소한 뒤 삼각함수에 넣는 이유와
+  // 동일) - 여기서도 초 단위로 먼저 줄인 뒤 위상/속도를 곱한다.
+  '  float t_twinkle = u_time * 0.001;' +
+  '  float twinkle = 0.5 + 0.5 * sin(t_twinkle * (2.0 + glint_seed * 6.0) + glint_seed * 6.2831853);' +
+  '  float glint = glint_spot * smoothstep(0.5, 1.0, twinkle);' +
   '  color += glint * u_sparkle * vec3(1.0, 0.98, 0.9);' +
   '  gl_FragColor = vec4(color, 1.0);' +
   '}';
