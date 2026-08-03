@@ -50,6 +50,15 @@ Three.js 기반 방송(OBS) 배경 화면 모음. 페이지마다 완전히 독�
   함수는 절대 건드리지 않는다)를 쓴다. 게시/수정/삭제는 `ADMIN_EMAIL`
   (`skftodwocks2@gmail.com`) 계정만 서버(`requireAdmin`)에서 검증한다 — 클라이언트는
   버튼 표시 여부만 판단할 뿐 권한을 신뢰하지 않는다.
+- 갤러리 목록의 "적용"/"OBS" 버튼은 클릭 횟수를 서버(`incrementPresetApplyCount`/
+  `incrementPresetObsLinkCount`, `presetGallery/{id}/stats`)에 자동 집계한다(통합 관리
+  센터 통계용). **새 배경 페이지를 만들 때 이 두 호출도 반드시 같이 복사할 것** — UI만
+  복사하고 이 호출을 빠뜨리면 그 페이지에서는 집계가 전혀 안 되는데도 겉보기엔 정상
+  작동하는 것처럼 보여서 알아채기 어렵다(2026-08-03에 `ski-resort.html`/`fireworks.html`이
+  이렇게 빠져 있었다가 뒤늦게 발견됨). 특히 `sceneUrl` 프리셋의 "적용" 버튼은 집계 요청을
+  보내자마자 `location.href`로 페이지를 이동시키면 응답 전에 요청이 취소되므로, 반드시
+  `#sceneApplyOverlay`(로딩 오버레이)를 띄운 채 집계 요청이 끝나거나 5초 안전장치가
+  지날 때까지 기다린 뒤 이동해야 한다(`index.html`의 해당 버튼 핸들러가 기준 구현).
 - 배경음은 **기본적으로 꺼둔다** (`soundEnabled: false` 등). 방송 배경 특성상 갑자기 소리가
   나면 사고가 될 수 있어서, 필요하면 사용자가 명시적으로 켜게 한다.
 
