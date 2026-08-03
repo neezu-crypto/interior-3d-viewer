@@ -521,7 +521,7 @@ const VignetteShader = {
 // 약해서 수평/수직 2패스씩 나눌 필요가 없다). u_resolution은 fitCanvas()에서
 // 실제 드로잉 버퍼 픽셀 크기로 갱신한다.
 const BlurShader = {
-  uniforms: { tDiffuse: { value: null }, u_resolution: { value: new THREE.Vector2(1, 1) }, u_amount: { value: 1.3 } },
+  uniforms: { tDiffuse: { value: null }, u_resolution: { value: new THREE.Vector2(1, 1) }, u_amount: { value: 2.6 } },
   vertexShader:
     'varying vec2 vUv;' +
     'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
