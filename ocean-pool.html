@@ -1161,7 +1161,7 @@ window.addEventListener('resize', function () {
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  waterMaterial.uniforms.u_time.value = clock.elapsedTime * 1000;
+  waterMaterial.uniforms.u_time.value = clock.getElapsedTime() * 1000;
   composer.render();
 }
 animate();
