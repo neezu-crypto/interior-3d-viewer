@@ -358,6 +358,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ------------------------------------------------------------
 // Firebase RTDB - 공개 프리셋 갤러리용. index.html/ski-resort.html/fireworks.html/
@@ -705,7 +706,47 @@ const waterMaterial = new THREE.ShaderMaterial({
 const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(backdropWidth, backdropHeight), waterMaterial);
 backdrop.position.set(0, 0, -BACKDROP_DIST);
 scene.add(backdrop);
-loadingEl.classList.add('hidden'); // 절차적 셰이더뿐이라 기다릴 텍스처 로딩이 없다
+// 수면 자체는 절차적 셰이더뿐이라 기다릴 로딩이 없어 바로 화면을 보여준다 -
+// 아래 러버덕 장식은 비동기로 불러와 도착하는 대로 얹히는 보너스라 이 화면
+// 전환을 막지 않는다.
+loadingEl.classList.add('hidden');
+
+// ------------------------------------------------------------
+// 러버덕 장식 - Khronos glTF 샘플 에셋의 공식 "Duck" 모델(SCEA Shared Source
+// License, 상업적 재배포 가능)을 그대로 불러와 물 위에 띄운다. PBR 재질이라
+// 조명이 있어야 보이므로 HemisphereLight 하나만 가볍게 추가(그림자 없음, 이
+// 장면엔 그림자 연출이 의미 없어서 생략).
+// ------------------------------------------------------------
+scene.add(new THREE.HemisphereLight(0xffffff, 0x889bb0, 1.4));
+
+const DUCK_TARGET_HEIGHT = 9;
+const DUCK_POSITION = new THREE.Vector3(14, -6, -60);
+let duckAnchor = null;
+new GLTFLoader().load(
+  'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Duck/glTF-Binary/Duck.glb',
+  function (gltf) {
+    const duck = gltf.scene;
+    const box = new THREE.Box3().setFromObject(duck);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const scale = DUCK_TARGET_HEIGHT / size.y;
+    duck.scale.setScalar(scale);
+    // 바운딩박스 중심을 원점으로 맞춰야 아래에서 씌우는 rotation.x(탑뷰로 눕히기)가
+    // 모델 자체를 축으로 자연스럽게 돌아간다(원점이 발밑 등 다른 곳이면 회전 시
+    // 모델이 궤도를 그리며 이상하게 움직인다).
+    duck.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    duckAnchor = new THREE.Group();
+    duckAnchor.add(duck);
+    // 원래 똑바로 서 있는(Y-up) 모델을 카메라가 위에서 내려다보는 것처럼 눕힌다.
+    duckAnchor.rotation.x = -Math.PI / 2;
+    duckAnchor.position.copy(DUCK_POSITION);
+    scene.add(duckAnchor);
+  },
+  undefined,
+  function (err) { console.error('러버덕 모델 로딩 실패:', err); }
+);
 
 // ------------------------------------------------------------
 // 후처리 - RenderPass + 틸트시프트 블러.
@@ -1232,11 +1273,18 @@ window.addEventListener('resize', function () {
 
 // ------------------------------------------------------------
 // 렌더 루프 - 카메라는 완전히 고정. 수면 셰이더의 시간 유니폼만 매 프레임 갱신.
+// 러버덕은 로딩이 끝나기 전엔 duckAnchor가 null이라 매 프레임 존재 여부만 확인.
 // ------------------------------------------------------------
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  waterMaterial.uniforms.u_time.value = clock.getElapsedTime() * 1000;
+  const elapsed = clock.getElapsedTime();
+  waterMaterial.uniforms.u_time.value = elapsed * 1000;
+  if (duckAnchor) {
+    duckAnchor.position.y = DUCK_POSITION.y + Math.sin(elapsed * 1.3) * 1.2;
+    duckAnchor.rotation.y = Math.sin(elapsed * 0.6) * 0.4;
+    duckAnchor.rotation.z = Math.sin(elapsed * 0.8 + 1.0) * 0.12;
+  }
   composer.render();
 }
 animate();
