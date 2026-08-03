@@ -753,7 +753,7 @@ const flameSprites = flameTextures.map(function (tex, idx) {
   spr.position.copy(headWorld);
   spr.position.z += 0.6 + 0.05 * (idx + 1);
   scene.add(spr);
-  return { sprite: spr, mat: mat, phase: idx * 2.1, rotSpeed: 0.35 + idx * 0.22, baseScale: 26 - idx * 5 };
+  return { sprite: spr, mat: mat, phase: idx * 2.1, rotSpeed: 0.35 + idx * 0.22, baseScale: 13 - idx * 2.5 };
 });
 
 function updateHeadGlow(t) {
