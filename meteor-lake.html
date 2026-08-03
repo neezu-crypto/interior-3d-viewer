@@ -768,6 +768,16 @@ function updateHeadGlow(t) {
   });
 }
 
+// 틸트시프트 블러는 화면 세로 좌표가 초점(TILT_SHIFT_FOCUS_R)에서 멀어질수록
+// 세게 걸린다 - 블러가 세게 걸릴수록 빛이 퍼져서 실제로는 더 흐릿하고 약해
+// 보이므로, 초점에서 먼 반짝임일수록 밝기를 더 키워서 보정한다(화면 중앙 =
+// 초점 근처이므로 결과적으로 "중앙에서 위아래로 멀어질수록 더 강하게 빛남").
+function focusDistFactor(v) {
+  return Math.abs(TILT_SHIFT_FOCUS_R - (1 - v));
+}
+const TWINKLE_FOCUS_BOOST = 3.2;
+const STAR_FOCUS_BOOST = 3.2;
+
 // ------------------------------------------------------------
 // 마을 불빛 반짝임 - 정확한 창문 좌표를 맞추는 대신, 이미지 하단(호숫가 마을) 영역에
 // 적당히 흩뿌리고 각자 다른 속도/위상으로 반짝이게 한다. 덧그리는 additive 오버레이라
@@ -781,6 +791,7 @@ const twinkleColor = new Float32Array(TWINKLE_COUNT * 3);
 const twinklePhase = new Float32Array(TWINKLE_COUNT);
 const twinkleSpeed = new Float32Array(TWINKLE_COUNT);
 const twinkleBase = new Float32Array(TWINKLE_COUNT);
+const twinkleFocusBoost = new Float32Array(TWINKLE_COUNT);
 for (let i = 0; i < TWINKLE_COUNT; i++) {
   const side = Math.random();
   let u;
@@ -793,6 +804,7 @@ for (let i = 0; i < TWINKLE_COUNT; i++) {
   twinklePhase[i] = Math.random() * Math.PI * 2;
   twinkleSpeed[i] = 1.2 + Math.random() * 2.2;
   twinkleBase[i] = 0.35 + Math.random() * 0.4;
+  twinkleFocusBoost[i] = 1 + focusDistFactor(v) * TWINKLE_FOCUS_BOOST;
 }
 twinkleGeo.setAttribute('position', new THREE.BufferAttribute(twinklePos, 3));
 twinkleGeo.setAttribute('color', new THREE.BufferAttribute(twinkleColor, 3));
@@ -808,7 +820,7 @@ function updateTwinkle(t) {
   const colorAttr = twinkleGeo.attributes.color;
   for (let i = 0; i < TWINKLE_COUNT; i++) {
     const s = Math.sin(t * twinkleSpeed[i] + twinklePhase[i]) * 0.5 + 0.5;
-    const alpha = twinkleBase[i] * (0.35 + s * 0.9);
+    const alpha = twinkleBase[i] * (0.35 + s * 0.9) * twinkleFocusBoost[i];
     colorAttr.setXYZ(i, twinkleWarmColor.r * alpha, twinkleWarmColor.g * alpha, twinkleWarmColor.b * alpha);
   }
   colorAttr.needsUpdate = true;
@@ -826,6 +838,7 @@ const starColor = new Float32Array(STAR_COUNT * 3);
 const starPhase = new Float32Array(STAR_COUNT);
 const starSpeed = new Float32Array(STAR_COUNT);
 const starBase = new Float32Array(STAR_COUNT);
+const starFocusBoost = new Float32Array(STAR_COUNT);
 for (let i = 0; i < STAR_COUNT; i++) {
   const u = Math.random();
   const v = Math.random() * 0.55;
@@ -834,6 +847,7 @@ for (let i = 0; i < STAR_COUNT; i++) {
   starPhase[i] = Math.random() * Math.PI * 2;
   starSpeed[i] = 1.0 + Math.random() * 2.6;
   starBase[i] = 0.3 + Math.random() * 0.45;
+  starFocusBoost[i] = 1 + focusDistFactor(v) * STAR_FOCUS_BOOST;
 }
 starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
 starGeo.setAttribute('color', new THREE.BufferAttribute(starColor, 3));
@@ -849,7 +863,7 @@ function updateStars(t) {
   const colorAttr = starGeo.attributes.color;
   for (let i = 0; i < STAR_COUNT; i++) {
     const s = Math.sin(t * starSpeed[i] + starPhase[i]) * 0.5 + 0.5;
-    const alpha = starBase[i] * (0.3 + s * 0.95);
+    const alpha = starBase[i] * (0.3 + s * 0.95) * starFocusBoost[i];
     colorAttr.setXYZ(i, starBlueColor.r * alpha, starBlueColor.g * alpha, starBlueColor.b * alpha);
   }
   colorAttr.needsUpdate = true;
