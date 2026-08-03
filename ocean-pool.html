@@ -567,10 +567,11 @@ const backdropWidth = backdropHeight * FIXED_ASPECT;
 // 뚜렷하게 보이기 때문 - 절차적 패턴은 완전히 이음새 없이 반복된다.
 const SBM_WATER_PARAMS = {
   blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, waterDistortion: 0.006, surfaceDistortion: 0.014,
-  // 깊이감 - 타일 바닥 위에 덧씌우는 반투명 "물의 몸통" 색(흰색). 이 맵은 정확한
-  // 탑뷰(카메라가 바로 위에서 내려다봄)라 화면 위/아래에 따른 원근(멀고 가까움)
-  // 차이가 없다 - 그래서 위치 그라데이션 없이 화면 전체에 균일한 비율로 섞는다.
-  depthColor: new THREE.Color(0xffffff), depthAlpha: 0.7
+  // 깊이감 - 단색 바닥 위에 덧씌우는 반투명 "물의 몸통" 색(파란색). 이 맵은
+  // 정확한 탑뷰(카메라가 바로 위에서 내려다봄)라 화면 위/아래에 따른 원근(멀고
+  // 가까움) 차이가 없다 - 그래서 위치 그라데이션 없이 화면 전체에 균일한
+  // 비율로 섞는다.
+  depthColor: new THREE.Color(0x0c3f66), depthAlpha: 0.7
 };
 
 const SBM_WATER_VERT_SRC =
@@ -671,8 +672,10 @@ const SBM_WATER_FRAG_SRC =
   // 타일이라 tile_uv에 적용). 두 겹을 쓰는 이유는 큰 흐름 하나만 쓰면 왜곡이
   // 밋밋하고, 디테일 하나만 쓰면 전체적으로 출렁이는 느낌이 없기 때문.
   '  vec2 tile_uv = uv + u_water_distortion * outer_noise + u_surface_distortion * sn;' +
-  '  vec3 base_color = tile_color(tile_uv);' +
-  // 깊이감 - 타일 위에 반투명 파란 "물의 몸통" 색을 한 겹 더 씌운다. 탑뷰라
+  // 배경 타일 끄기 - 모자이크 타일 패턴 대신 단색 바닥(흰색)을 써서, 그 위에
+  // 덧씌우는 깊이감 레이어 색이 화면을 사실상 지배하게 한다.
+  '  vec3 base_color = vec3(1.0);' +
+  // 깊이감 - 단색 바닥 위에 반투명 파란 "물의 몸통" 색을 한 겹 더 씌운다. 탑뷰라
   // 화면 위/아래에 원근 차이가 없어 그라데이션 없이 균일한 비율로 섞는다.
   // 조명보다 먼저 섞어야 그 위 효과가 살아난다.
   '  base_color = mix(base_color, u_depth_color, u_depth_alpha);' +
