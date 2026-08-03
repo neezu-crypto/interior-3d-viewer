@@ -739,8 +739,10 @@ new GLTFLoader().load(
     duck.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
     duckAnchor = new THREE.Group();
     duckAnchor.add(duck);
-    // 원래 똑바로 서 있는(Y-up) 모델을 카메라가 위에서 내려다보는 것처럼 눕힌다.
-    duckAnchor.rotation.x = -Math.PI / 2;
+    // 정확한 탑뷰로 눕히면(rotation.x) 등/배만 보여서 둥근 알처럼 보였다 -
+    // 대신 옆으로 굴려서(rotation.z) 머리·부리·몸통이 드러나는 측면 실루엣이
+    // 카메라를 향하게 한다(이 소품 하나만 탑뷰 원칙에서 예외).
+    duckAnchor.rotation.z = Math.PI / 2;
     duckAnchor.position.copy(DUCK_POSITION);
     scene.add(duckAnchor);
   },
@@ -1283,7 +1285,9 @@ function animate() {
   if (duckAnchor) {
     duckAnchor.position.y = DUCK_POSITION.y + Math.sin(elapsed * 1.3) * 1.2;
     duckAnchor.rotation.y = Math.sin(elapsed * 0.6) * 0.4;
-    duckAnchor.rotation.z = Math.sin(elapsed * 0.8 + 1.0) * 0.12;
+    // 옆으로 누운 기본 자세(Math.PI / 2)에 살짝 흔들리는 각도만 더한다 - 매
+    // 프레임 통째로 덮어쓰면 눕혀둔 기본 자세가 사라져 버린다.
+    duckAnchor.rotation.z = Math.PI / 2 + Math.sin(elapsed * 0.8 + 1.0) * 0.12;
   }
   composer.render();
 }
