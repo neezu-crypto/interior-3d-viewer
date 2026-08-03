@@ -567,10 +567,10 @@ const backdropWidth = backdropHeight * FIXED_ASPECT;
 // 뚜렷하게 보이기 때문 - 절차적 패턴은 완전히 이음새 없이 반복된다.
 const SBM_WATER_PARAMS = {
   blueish: 0.5, scale: 8, illumination: 0.2, tileCount: 16, waterDistortion: 0.006, surfaceDistortion: 0.014,
-  // 깊이감 - 타일 바닥 위에 덧씌우는 반투명 파란 "물의 몸통" 색. 이 맵은 정확한
+  // 깊이감 - 타일 바닥 위에 덧씌우는 반투명 "물의 몸통" 색(흰색). 이 맵은 정확한
   // 탑뷰(카메라가 바로 위에서 내려다봄)라 화면 위/아래에 따른 원근(멀고 가까움)
   // 차이가 없다 - 그래서 위치 그라데이션 없이 화면 전체에 균일한 비율로 섞는다.
-  depthColor: new THREE.Color(0x0c3f66), depthAlpha: 0.7
+  depthColor: new THREE.Color(0xffffff), depthAlpha: 0.7
 };
 
 const SBM_WATER_VERT_SRC =
