@@ -899,7 +899,7 @@ function createMelonCapTexture() {
 
 const MELON_POSITION = new THREE.Vector3(-2, 11, -58);
 const watermelonFloat = new THREE.Mesh(
-  new THREE.CylinderGeometry(6.3, 6.3, 2.6, 40, 1, false, 0, Math.PI),
+  new THREE.CylinderGeometry(6.3, 6.3, 2.6, 96, 1, false, 0, Math.PI),
   [
     new THREE.MeshPhysicalMaterial({ color: '#3f8f3a', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.2 }), // 옆면(껍질)
     new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 }), // 윗면(과육)
