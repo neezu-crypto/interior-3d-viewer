@@ -1053,6 +1053,18 @@ new FontLoader().load(
   function (err) { console.error('텍스트 폰트 로딩 실패:', err); }
 );
 
+const TEXT_CHAR_MATERIAL = new THREE.MeshPhysicalMaterial({
+  color: '#ff6b4a',
+  roughness: 0.35,
+  metalness: 0.0,
+  clearcoat: 0.55,
+  clearcoatRoughness: 0.2,
+  // side: DoubleSide - 다른 원인 하나(뒷면 컬링)에 대한 예방. 실제 "여러 글자면
+  // 첫 글자 옆에 큰 삼각형 조각이 붙어 보이는" 버그의 진짜 원인은 이게 아니라
+  // 아래 setFloatingText 주석 참고.
+  side: THREE.DoubleSide
+});
+
 function setFloatingText(rawText) {
   if (!floatingTextFont) return;
   const text = rawText.trim().slice(0, 12);
@@ -1060,41 +1072,49 @@ function setFloatingText(rawText) {
 
   if (textFloat) {
     scene.remove(textFloat);
-    textFloat.geometry.dispose();
-    textFloat.material.dispose();
+    textFloat.traverse(function (obj) { if (obj.geometry) obj.geometry.dispose(); });
     textFloat = null;
   }
 
-  const geo = new TextGeometry(text, {
-    font: floatingTextFont,
-    size: 6,
-    // depth(앞뒤 두께) - 회전 애니메이션 때문이 아니라(회전 0으로 고정해도
-    // 똑같이 보임을 확인), 카메라가 원근 투영이라 화면 중심에서 먼(=글자
-    // 폭 때문에 좌우 바깥쪽) 부분일수록 옆면(depth)이 자연스럽게 더 드러나
-    // 보인다 - 이 효과 자체를 없앨 순 없지만, depth를 얇게 줄일수록 드러나는
-    // 옆면 폭도 비례해서 줄어든다. 획 두께보다도 더 얇게(0.9) 눌러서 이
-    // "앞뒤로 길어 보이는" 느낌을 최대한 줄인다.
-    depth: 0.9,
-    curveSegments: 10,
-    bevelEnabled: true,
-    bevelThickness: 0.45,
-    bevelSize: 0.65,
-    bevelSegments: 8
-  });
-  // 바운딩박스 중심을 원점으로 맞춰야 텍스트 길이와 무관하게 항상 글자 뭉치
-  // 한가운데를 축으로 애니메이션(까딱임)이 걸린다.
-  geo.computeBoundingBox();
-  const center = new THREE.Vector3();
-  geo.boundingBox.getCenter(center);
-  geo.translate(-center.x, -center.y, -center.z);
+  // 버그 발견 - 글자를 통째로 한 TextGeometry에 넣으면("La" 이상) 첫 글자
+  // 옆에 원인 불명의 큰 삼각형 조각이 붙어 보였는데, 단일 글자("L" 하나)는
+  // 항상 깨끗했다. depth/bevelSize를 아무리 줄여도 그 조각 크기가 줄지
+  // 않는 걸로 봐서 원근이나 베벨 파라미터 문제가 아니라, three.js
+  // ExtrudeGeometry가 "베벨 있음 + 한 지오메트리에 여러 개의 분리된 글자
+  // 윤곽선"을 같이 처리할 때 생기는 버그로 판단된다. 그래서 글자마다 각각
+  // 독립된 TextGeometry(항상 정상 동작 확인됨)로 만들고, 폭을 재서 직접
+  // 가로로 배치하는 방식으로 이 버그 나는 코드 경로 자체를 피한다.
+  const group = new THREE.Group();
+  let cursorX = 0;
+  const letterGap = 0.7;
+  for (const ch of text) {
+    if (ch === ' ') { cursorX += 3.4; continue; }
+    const charGeo = new TextGeometry(ch, {
+      font: floatingTextFont,
+      size: 6,
+      depth: 0.9,
+      curveSegments: 10,
+      bevelEnabled: true,
+      bevelThickness: 0.45,
+      bevelSize: 0.4,
+      bevelSegments: 8
+    });
+    charGeo.computeBoundingBox();
+    const box = charGeo.boundingBox;
+    const charMesh = new THREE.Mesh(charGeo, TEXT_CHAR_MATERIAL);
+    charMesh.position.x = cursorX - box.min.x;
+    group.add(charMesh);
+    cursorX += (box.max.x - box.min.x) + letterGap;
+  }
 
-  textFloat = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({
-    color: '#ff6b4a',
-    roughness: 0.35,
-    metalness: 0.0,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.2
-  }));
+  // 글자들을 다 배치한 뒤 전체 바운딩박스 중심을 원점으로 맞춰야 텍스트
+  // 길이와 무관하게 항상 글자 뭉치 한가운데를 축으로 애니메이션(까딱임)이 걸린다.
+  const groupBox = new THREE.Box3().setFromObject(group);
+  const center = new THREE.Vector3();
+  groupBox.getCenter(center);
+  group.children.forEach(function (c) { c.position.sub(center); });
+
+  textFloat = group;
   textFloat.position.copy(TEXT_POSITION);
   scene.add(textFloat);
 }
