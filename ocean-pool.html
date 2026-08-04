@@ -733,10 +733,19 @@ new GLTFLoader().load(
     box.getCenter(center);
     const scale = DUCK_TARGET_HEIGHT / size.y;
     duck.scale.setScalar(scale);
-    // 바운딩박스 중심을 원점으로 맞춰야 아래에서 씌우는 rotation.x(탑뷰로 눕히기)가
+    // 바운딩박스 중심을 원점으로 맞춰야 아래에서 씌우는 rotation.z(옆으로 눕히기)가
     // 모델 자체를 축으로 자연스럽게 돌아간다(원점이 발밑 등 다른 곳이면 회전 시
     // 모델이 궤도를 그리며 이상하게 움직인다).
     duck.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    // 채도·밝기를 조금 올린다 - 원본 텍스처 색을 HSL로 바꿔 S/L만 살짝 키우면
+    // 색상(H)은 그대로라 색이 틀어지지 않는다.
+    duck.traverse(function (child) {
+      if (child.isMesh && child.material && child.material.color) {
+        const hsl = { h: 0, s: 0, l: 0 };
+        child.material.color.getHSL(hsl);
+        child.material.color.setHSL(hsl.h, Math.min(1, hsl.s * 1.25), Math.min(1, hsl.l * 1.15));
+      }
+    });
     duckAnchor = new THREE.Group();
     duckAnchor.add(duck);
     // 정확한 탑뷰로 눕히면(rotation.x) 등/배만 보여서 둥근 알처럼 보였다 -
