@@ -902,8 +902,10 @@ const watermelonFloat = new THREE.Mesh(
   new THREE.CylinderGeometry(6.3, 6.3, 2.6, 96, 1, false, 0, Math.PI),
   [
     new THREE.MeshPhysicalMaterial({ color: '#3f8f3a', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.2 }), // 옆면(껍질)
-    new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 }), // 윗면(과육)
-    new THREE.MeshPhysicalMaterial({ color: '#c23b33', roughness: 0.5 }) // 아랫면(안 보이는 쪽, 단순 색)
+    new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 }), // 윗면(과육 - 껍질/흰살/씨)
+    // 아랫면도 회전하면 카메라에 보일 수 있어서 윗면과 같은 껍질/흰살/씨 텍스처를
+    // 입힌다(createMelonCapTexture()를 다시 호출해 씨 위치는 자연스럽게 다르게).
+    new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 })
   ]
 );
 watermelonFloat.position.copy(MELON_POSITION);
