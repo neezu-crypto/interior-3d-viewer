@@ -603,6 +603,10 @@ const SBM_WATER_FRAG_SRC =
   'uniform float u_surface_distortion;' +
   'uniform vec3 u_depth_color;' +
   'uniform float u_depth_alpha;' +
+  'uniform vec2 u_shadow1_pos;' +
+  'uniform float u_shadow1_radius;' +
+  'uniform vec2 u_shadow2_pos;' +
+  'uniform float u_shadow2_radius;' +
   'vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }' +
@@ -688,6 +692,15 @@ const SBM_WATER_FRAG_SRC =
   // 화면 위/아래에 원근 차이가 없어 그라데이션 없이 균일한 비율로 섞는다.
   // 조명보다 먼저 섞어야 그 위 효과가 살아난다.
   '  base_color = mix(base_color, u_depth_color, u_depth_alpha);' +
+  // 오리·비치볼 그림자 - 잔물결(u_water_distortion/u_surface_distortion)이 이미
+  // 왜곡해 둔 tile_uv를 기준으로 그림자 위치를 비교한다. 왜곡 전 uv를 썼다면
+  // 그림자가 수면 아래 고정된 판에 박힌 것처럼 뻣뻣했을 텐데, tile_uv를 쓰면
+  // 그림자도 물결과 똑같이 흔들리고 갈라져 보여서 "물결보다 아래 레이어에서
+  // 같이 일렁이는" 느낌이 난다.
+  '  float shadow1 = 1.0 - smoothstep(0.0, u_shadow1_radius, distance(tile_uv, u_shadow1_pos));' +
+  '  float shadow2 = 1.0 - smoothstep(0.0, u_shadow2_radius, distance(tile_uv, u_shadow2_pos));' +
+  '  float shadow_amt = clamp(max(shadow1, shadow2), 0.0, 0.55);' +
+  '  base_color *= (1.0 - shadow_amt);' +
   '  vec3 color = base_color * (1.0 + u_illumination * sn);' +
   '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
   '  float shadow = smoothstep(0.15, 0.0, sn);' +
@@ -706,7 +719,13 @@ const waterMaterial = new THREE.ShaderMaterial({
     u_water_distortion: { value: SBM_WATER_PARAMS.waterDistortion },
     u_surface_distortion: { value: SBM_WATER_PARAMS.surfaceDistortion },
     u_depth_color: { value: SBM_WATER_PARAMS.depthColor },
-    u_depth_alpha: { value: SBM_WATER_PARAMS.depthAlpha }
+    u_depth_alpha: { value: SBM_WATER_PARAMS.depthAlpha },
+    // 오리(그림자1)/비치볼(그림자2) 위치 - 화면 밖(-99)으로 초기화해 로딩 전에는
+    // 그림자가 보이지 않게 한다. 매 프레임 animate()에서 실제 위치로 갱신.
+    u_shadow1_pos: { value: new THREE.Vector2(-99, -99) },
+    u_shadow1_radius: { value: 0.16 },
+    u_shadow2_pos: { value: new THREE.Vector2(-99, -99) },
+    u_shadow2_radius: { value: 0.14 }
   },
   vertexShader: SBM_WATER_VERT_SRC,
   fragmentShader: SBM_WATER_FRAG_SRC
@@ -1358,6 +1377,16 @@ window.addEventListener('resize', function () {
   }
 });
 
+// 오리/비치볼의 3D 월드 위치를 수면 셰이더의 uv 좌표계로 투영한다 - 셰이더
+// main()이 vUv에 적용하는 것과 정확히 같은 변환(y 뒤집기, x에 종횡비 곱하기)을
+// 그대로 따라야 그림자 위치가 화면상 물체 바로 아래에 맞게 겹쳐진다.
+const shadowProjection = new THREE.Vector3();
+function projectToWaterUV(worldPos, out) {
+  shadowProjection.copy(worldPos).project(camera);
+  out.x = ((shadowProjection.x + 1) / 2) * FIXED_ASPECT;
+  out.y = 1.0 - (shadowProjection.y + 1) / 2;
+}
+
 // ------------------------------------------------------------
 // 렌더 루프 - 카메라는 완전히 고정. 수면 셰이더의 시간 유니폼만 매 프레임 갱신.
 // 러버덕은 로딩이 끝나기 전엔 duckAnchor가 null이라 매 프레임 존재 여부만 확인.
@@ -1373,10 +1402,12 @@ function animate() {
     // 옆으로 누운 기본 자세(Math.PI / 2)에 살짝 흔들리는 각도만 더한다 - 매
     // 프레임 통째로 덮어쓰면 눕혀둔 기본 자세가 사라져 버린다.
     duckAnchor.rotation.z = Math.PI / 2 + Math.sin(elapsed * 0.8 + 1.0) * 0.12;
+    projectToWaterUV(duckAnchor.position, waterMaterial.uniforms.u_shadow1_pos.value);
   }
   beachBall.position.y = BALL_POSITION.y + Math.sin(elapsed * 1.1 + 2.0) * 1.0;
   beachBall.rotation.y = elapsed * 0.3;
   beachBall.rotation.z = 0.2 + Math.sin(elapsed * 0.5) * 0.08;
+  projectToWaterUV(beachBall.position, waterMaterial.uniforms.u_shadow2_pos.value);
   composer.render();
 }
 animate();
