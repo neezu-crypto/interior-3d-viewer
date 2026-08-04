@@ -311,6 +311,13 @@
 
     <p class="panel-hint">화면을 더블클릭하면 전체화면으로 전환·복귀돼요. 아래 갤러리에 게시된 프리셋을 적용하거나 OBS 브라우저 소스용 링크를 복사해 쓸 수 있어요. 새 프리셋 저장·공유·게시/삭제는 관리자 계정만 가능해요. 소리는 기본적으로 꺼져 있어요(방송 사고 방지).</p>
 
+    <p class="panel-title">물에 띄울 텍스트</p>
+    <div class="preset-save-row">
+      <input type="text" id="floatTextInput" placeholder="예: HELLO" maxlength="12">
+      <button id="floatTextBtn" type="button">띄우기</button>
+    </div>
+    <div class="panel-divider"></div>
+
     <div id="localPresetSection" style="display:none;">
       <p class="panel-title">프리셋 (관리자 전용)</p>
       <div class="preset-save-row">
@@ -360,6 +367,8 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 // ------------------------------------------------------------
 // Firebase RTDB - 공개 프리셋 갤러리용. index.html/ski-resort.html/fireworks.html/
@@ -599,6 +608,8 @@ const SBM_WATER_FRAG_SRC =
   'uniform float u_shadow2_radius;' +
   'uniform vec2 u_shadow3_pos;' +
   'uniform float u_shadow3_radius;' +
+  'uniform vec2 u_shadow4_pos;' +
+  'uniform float u_shadow4_radius;' +
   'vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }' +
   'vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }' +
@@ -692,7 +703,8 @@ const SBM_WATER_FRAG_SRC =
   '  float shadow1 = 1.0 - smoothstep(0.0, u_shadow1_radius, distance(tile_uv, u_shadow1_pos));' +
   '  float shadow2 = 1.0 - smoothstep(0.0, u_shadow2_radius, distance(tile_uv, u_shadow2_pos));' +
   '  float shadow3 = 1.0 - smoothstep(0.0, u_shadow3_radius, distance(tile_uv, u_shadow3_pos));' +
-  '  float shadow_amt = clamp(max(max(shadow1, shadow2), shadow3), 0.0, 0.55);' +
+  '  float shadow4 = 1.0 - smoothstep(0.0, u_shadow4_radius, distance(tile_uv, u_shadow4_pos));' +
+  '  float shadow_amt = clamp(max(max(max(shadow1, shadow2), shadow3), shadow4), 0.0, 0.55);' +
   '  base_color *= (1.0 - shadow_amt);' +
   '  vec3 color = base_color * (1.0 + u_illumination * sn);' +
   '  color += u_illumination * vec3(1.0 - u_blueish, 1.0, 1.0) * sn;' +
@@ -721,7 +733,9 @@ const waterMaterial = new THREE.ShaderMaterial({
     u_shadow2_pos: { value: new THREE.Vector2(-99, -99) },
     u_shadow2_radius: { value: 0.154 },
     u_shadow3_pos: { value: new THREE.Vector2(-99, -99) },
-    u_shadow3_radius: { value: 0.15 }
+    u_shadow3_radius: { value: 0.15 },
+    u_shadow4_pos: { value: new THREE.Vector2(-99, -99) },
+    u_shadow4_radius: { value: 0.13 }
   },
   vertexShader: SBM_WATER_VERT_SRC,
   fragmentShader: SBM_WATER_FRAG_SRC
@@ -981,6 +995,81 @@ watermelonFloat.position.copy(MELON_POSITION);
 // 위해 살짝만 더 기울인다.
 watermelonFloat.rotation.x = Math.PI / 2 - 0.15;
 scene.add(watermelonFloat);
+
+// ------------------------------------------------------------
+// 물에 띄우는 텍스트 - 패널에 입력한 글자를 오리·비치볼·수박튜브와 같은 방식
+// (그림자 포함)으로 물 위에 띄운다. TextGeometry의 베벨(bevelEnabled)로
+// 튜브 특유의 라운딩을 준다. 오리/수박튜브처럼 눕히는 회전을 주면 글자가
+// 옆으로 돌아가 못 읽게 되므로, 이 소품만은 원래 방향(서서, 카메라를 정면으로
+// 보는 방향) 그대로 둔다 - "다들 탑뷰인데 이것만 예외"인 셈인데, 읽혀야 하는
+// 텍스트라 이 예외가 불가피하다. 뒤집히거나 과하게 도는 걸 막기 위해
+// animate()의 회전 진폭도 다른 소품보다 훨씬 작게 잡는다.
+// ------------------------------------------------------------
+const TEXT_POSITION = new THREE.Vector3(0, -15, -78);
+let floatingTextFont = null;
+let textFloat = null;
+const floatTextInputEl = document.getElementById('floatTextInput');
+const floatTextBtnEl = document.getElementById('floatTextBtn');
+floatTextBtnEl.disabled = true;
+floatTextBtnEl.textContent = '폰트 로딩 중...';
+
+new FontLoader().load(
+  'https://cdn.jsdelivr.net/npm/three@0.160.1/examples/fonts/helvetiker_bold.typeface.json',
+  function (font) {
+    floatingTextFont = font;
+    floatTextBtnEl.disabled = false;
+    floatTextBtnEl.textContent = '띄우기';
+  },
+  undefined,
+  function (err) { console.error('텍스트 폰트 로딩 실패:', err); }
+);
+
+function setFloatingText(rawText) {
+  if (!floatingTextFont) return;
+  const text = rawText.trim().slice(0, 12);
+  if (!text) return;
+
+  if (textFloat) {
+    scene.remove(textFloat);
+    textFloat.geometry.dispose();
+    textFloat.material.dispose();
+    textFloat = null;
+  }
+
+  const geo = new TextGeometry(text, {
+    font: floatingTextFont,
+    size: 6,
+    depth: 2.4,
+    curveSegments: 8,
+    bevelEnabled: true,
+    bevelThickness: 0.55,
+    bevelSize: 0.45,
+    bevelSegments: 4
+  });
+  // 바운딩박스 중심을 원점으로 맞춰야 텍스트 길이와 무관하게 항상 글자 뭉치
+  // 한가운데를 축으로 애니메이션(까딱임)이 걸린다.
+  geo.computeBoundingBox();
+  const center = new THREE.Vector3();
+  geo.boundingBox.getCenter(center);
+  geo.translate(-center.x, -center.y, -center.z);
+
+  textFloat = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({
+    color: '#ff6b4a',
+    roughness: 0.35,
+    metalness: 0.0,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.2
+  }));
+  textFloat.position.copy(TEXT_POSITION);
+  scene.add(textFloat);
+}
+
+floatTextBtnEl.addEventListener('click', function () {
+  setFloatingText(floatTextInputEl.value);
+});
+floatTextInputEl.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') floatTextBtnEl.click();
+});
 
 // ------------------------------------------------------------
 // 후처리 - RenderPass + 화면 전체 블러.
@@ -1542,6 +1631,14 @@ function animate() {
   // 흔들리게(±0.15라디안 오실레이션) 바꿔서 항상 같은 면이 위를 향하게 한다.
   watermelonFloat.rotation.z = Math.sin(elapsed * 0.4) * 0.15;
   projectToWaterUV(watermelonFloat.position, waterMaterial.uniforms.u_shadow3_pos.value);
+  if (textFloat) {
+    textFloat.position.y = TEXT_POSITION.y + Math.sin(elapsed * 0.85 + 1.5) * 1.0;
+    // 다른 소품들보다 훨씬 작은 진폭 - 뒤집히지 않는 것만으론 부족하고, 글자가
+    // 항상 편하게 읽히려면 회전 자체를 작게 눌러둬야 한다.
+    textFloat.rotation.z = Math.sin(elapsed * 0.35) * 0.05;
+    textFloat.rotation.y = Math.sin(elapsed * 0.5 + 2.0) * 0.08;
+    projectToWaterUV(textFloat.position, waterMaterial.uniforms.u_shadow4_pos.value);
+  }
   composer.render();
 }
 animate();
