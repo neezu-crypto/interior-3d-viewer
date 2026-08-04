@@ -184,6 +184,32 @@
     cursor: pointer;
   }
   #presetSaveBtn:hover { background: #e8a657; }
+  #floatTextInput {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.92);
+    font-size: 11px;
+    outline: none;
+  }
+  #floatTextInput::placeholder { color: rgba(255,255,255,0.4); }
+  #floatTextInput:focus { border-color: rgba(232, 166, 87, 0.6); }
+  #floatTextBtn {
+    flex: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(232, 166, 87, 0.85);
+    color: #1a1410;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #floatTextBtn:hover { background: #e8a657; }
+  #floatTextBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .panel-divider {
     height: 1px;
