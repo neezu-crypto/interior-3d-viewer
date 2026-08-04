@@ -359,6 +359,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ------------------------------------------------------------
 // Firebase RTDB - 공개 프리셋 갤러리용. index.html/ski-resort.html/fireworks.html/
@@ -550,6 +551,13 @@ const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// 비치볼의 유광 비닐 재질에 그럴듯한 반사 하이라이트를 주기 위한 환경맵 -
+// 외부 HDR 이미지 없이 three.js가 내장한 절차적 방(RoomEnvironment)을
+// PMREM으로 구워서 씀(이 씬의 "이미지 에셋 없음" 원칙을 오리 모델 하나만
+// 예외로 깨고 있는데, 환경맵까지 외부 이미지를 쓰진 않기 위함).
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
 
 // ------------------------------------------------------------
 // 물 배경판 - 카메라 시야를 정확히 채우는 평면에 수면 왜곡 셰이더를 그린다.
@@ -758,6 +766,74 @@ new GLTFLoader().load(
   undefined,
   function (err) { console.error('러버덕 모델 로딩 실패:', err); }
 );
+
+// ------------------------------------------------------------
+// 비치볼 장식 - 딱 맞는 무료 3D 모델을 못 찾아서(오리처럼 공식 샘플 에셋이
+// 없음) 캔버스로 직접 그린 텍스처를 구체에 입혀 절차적으로 만든다. 경도
+// 기준으로 색을 나누면 구 위에서 극(카메라 쪽)으로 모이는 조각 패턴이 되는데,
+// 이게 바로 비치볼을 위에서 내려다볼 때의 그 "바람개비" 무늬라 탑뷰 카메라와
+// 잘 맞는다(오리처럼 옆으로 눕히는 예외 처리가 필요 없음).
+// ------------------------------------------------------------
+function createBeachBallTextures() {
+  const w = 1024, h = 512;
+  const wedgeColors = ['#e8462c', '#f7c948', '#2f8fc2', '#3fb689', '#f7f2e7', '#8a5fd6'];
+  const wedges = wedgeColors.length;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  for (let i = 0; i < wedges; i++) {
+    ctx.fillStyle = wedgeColors[i];
+    ctx.fillRect((i / wedges) * w, 0, w / wedges + 1, h);
+  }
+  const capH = h * 0.15;
+  ctx.fillStyle = '#f7f5ef';
+  ctx.fillRect(0, 0, w, capH);
+  ctx.fillRect(0, h - capH, w, capH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i <= wedges; i++) {
+    const x = (i / wedges) * w;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+
+  // 노멀맵 - 패널 이음선 자리만 살짝 홈이 파인 것처럼 표면 방향을 눌러줘서,
+  // 환경맵 반사가 이음선에서 갈라져 보이게 한다(단색 평면보다 입체감이 생김).
+  const nCanvas = document.createElement('canvas');
+  nCanvas.width = w; nCanvas.height = h;
+  const nctx = nCanvas.getContext('2d');
+  nctx.fillStyle = 'rgb(128,128,255)';
+  nctx.fillRect(0, 0, w, h);
+  nctx.strokeStyle = 'rgb(96,96,220)';
+  nctx.lineWidth = 5;
+  for (let i = 0; i <= wedges; i++) {
+    const x = (i / wedges) * w;
+    nctx.beginPath(); nctx.moveTo(x, 0); nctx.lineTo(x, h); nctx.stroke();
+  }
+  const normalMap = new THREE.CanvasTexture(nCanvas);
+
+  return { map, normalMap };
+}
+
+const BALL_POSITION = new THREE.Vector3(-18, -3, -55);
+const ballTextures = createBeachBallTextures();
+const beachBall = new THREE.Mesh(
+  new THREE.SphereGeometry(5, 48, 32),
+  new THREE.MeshPhysicalMaterial({
+    map: ballTextures.map,
+    normalMap: ballTextures.normalMap,
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    roughness: 0.32,
+    metalness: 0.0,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.15
+  })
+);
+beachBall.position.copy(BALL_POSITION);
+beachBall.rotation.x = 0.2;
+scene.add(beachBall);
 
 // ------------------------------------------------------------
 // 후처리 - RenderPass + 틸트시프트 블러.
@@ -1298,6 +1374,9 @@ function animate() {
     // 프레임 통째로 덮어쓰면 눕혀둔 기본 자세가 사라져 버린다.
     duckAnchor.rotation.z = Math.PI / 2 + Math.sin(elapsed * 0.8 + 1.0) * 0.12;
   }
+  beachBall.position.y = BALL_POSITION.y + Math.sin(elapsed * 1.1 + 2.0) * 1.0;
+  beachBall.rotation.y = elapsed * 0.3;
+  beachBall.rotation.z = 0.2 + Math.sin(elapsed * 0.5) * 0.08;
   composer.render();
 }
 animate();
