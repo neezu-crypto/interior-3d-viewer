@@ -862,72 +862,126 @@ scene.add(beachBall);
 
 // ------------------------------------------------------------
 // 수박 조각 튜브 장식 - 가운데가 뚫린 크레센트(도넛 반쪽) 대신, 속이 꽉 찬
-// 반달 원판으로 만든다. 처음엔 LatheGeometry(단면을 반원만 돌리기)로
-// 시도했는데, 그 방식은 원판 중심이 회전축의 극점이 돼서 씨앗 무늬가 중심
-// 한 점으로 빨려 들어가듯 찌그러지는 문제가 있었다(구 UV맵의 극지방 왜곡과
-// 같은 원리). 대신 CylinderGeometry(반원 각도만 사용)를 써서 윗면은 원판
-// 전용 UV(왜곡 없음)를 쓰는 별도 재질로 씨앗 무늬를, 옆면(테두리)은 단색
-// 초록 재질로 분리해 각자 왜곡 없이 깔끔하게 나오게 했다.
+// 반달 원판으로 만든다. 테두리를 통통하게 부풀린 단면을 반원만 돌려서
+// 튜브 특유의 라운딩을 낸다. 중심축(극점)을 지나는 하나의 LatheGeometry로
+// 통째로 만들면 이음새 정렬 문제가 아예 없는데, 대신 씨앗처럼 촘촘한
+// 점무늬를 이 지오메트리의 UV(원점이 극점)에 그대로 그리면 극지방 왜곡으로
+// 한 점에 빨려 들어가듯 찌그러진다 - 그래서 색은 무늬 없는 밋밋한
+// 띠(껍질/흰살/과육)로만 텍스처에 넣고, 씨앗은 텍스처가 아니라 실제로 작고
+// 납작한 씨앗 모양 메시를 평평한 위/아랫면 위에 개별로 흩뿌려서 왜곡 문제
+// 자체를 피한다.
 // ------------------------------------------------------------
-function createMelonCapTexture() {
-  const size = 512;
+function createMelonBandTexture() {
+  const w = 256, h = 256;
   const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
+  canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
-  const cx = size / 2, cy = size / 2, R = size / 2;
-  ctx.fillStyle = '#e0483f';
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#1a1208';
-  for (let i = 0; i < 70; i++) {
-    const rr = Math.random() * R * 0.8;
-    const aa = Math.random() * Math.PI * 2;
-    ctx.save();
-    ctx.translate(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr);
-    ctx.rotate(Math.random() * Math.PI);
-    ctx.beginPath(); ctx.ellipse(0, 0, 4, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+  // LatheGeometry의 v좌표는 실제 호(弧) 길이가 아니라 프로필 배열의 "인덱스"
+  // 비율로 정해진다(9개 점 = 8구간이라 각 구간이 정확히 1/8씩). 그래서 띠
+  // 경계도 실제 곡선 길이가 아니라 MELON_PROFILE의 점 인덱스에 맞춰 넣는다 -
+  // 점 0~1(0~0.125)이 평평한 윗면, 1~7(0.125~0.875)이 테두리, 7~8(0.875~1)이
+  // 평평한 아랫면이다.
+  const bands = [
+    { from: 0.000, to: 0.125, color: '#e0483f' },
+    { from: 0.125, to: 0.1875, color: '#eef6df' },
+    { from: 0.1875, to: 0.8125, color: '#3f8f3a' },
+    { from: 0.8125, to: 0.875, color: '#eef6df' },
+    { from: 0.875, to: 1.000, color: '#e0483f' }
+  ];
+  bands.forEach(function (b) {
+    ctx.fillStyle = b.color;
+    ctx.fillRect(0, b.from * h, w, (b.to - b.from) * h);
+  });
+  // 초록 띠(테두리) 구간에는 짙은 초록 줄무늬를 넣어 실제 수박 껍질처럼
+  // 보이게 한다 - u축(가로, 테두리를 도는 방향)은 극점을 지나지 않아 포인트
+  // 인덱스 문제와 무관하므로 여기엔 자유롭게 세부 무늬를 넣어도 안전하다.
+  const greenFrom = 0.1875 * h, greenTo = 0.8125 * h;
+  const stripeCount = 10;
+  for (let i = 0; i < stripeCount; i++) {
+    const baseX = ((i + 0.5) / stripeCount) * w;
+    ctx.strokeStyle = '#2d6b28';
+    ctx.lineWidth = (w / stripeCount) * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(baseX, greenFrom - 2);
+    const segs = 4;
+    for (let s = 1; s <= segs; s++) {
+      const yy = greenFrom + (s / segs) * (greenTo - greenFrom);
+      const xx = baseX + Math.sin(s * 1.7 + i * 2.1) * (w / stripeCount * 0.25);
+      ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
   }
-  // 테두리 쪽에 흰 층 + 얇은 초록 띠를 그려 옆면의 초록 단색 재질과 자연스럽게 이어지게 한다.
-  ctx.strokeStyle = '#eef6df'; ctx.lineWidth = R * 0.11;
-  ctx.beginPath(); ctx.arc(cx, cy, R * 0.87, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#3f8f3a'; ctx.lineWidth = R * 0.08;
-  ctx.beginPath(); ctx.arc(cx, cy, R * 0.98, 0, Math.PI * 2); ctx.stroke();
   const map = new THREE.CanvasTexture(canvas);
+  map.wrapS = THREE.RepeatWrapping;
+  map.wrapT = THREE.ClampToEdgeWrapping;
   map.colorSpace = THREE.SRGBColorSpace;
   return map;
 }
 
-const MELON_POSITION = new THREE.Vector3(-2, 11, -58);
-const watermelonFloat = new THREE.Mesh(
-  new THREE.CylinderGeometry(6.3, 6.3, 2.6, 96, 1, false, 0, Math.PI),
-  [
-    new THREE.MeshPhysicalMaterial({ color: '#3f8f3a', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.2 }), // 옆면(껍질)
-    new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 }), // 윗면(과육 - 껍질/흰살/씨)
-    // 아랫면도 회전하면 카메라에 보일 수 있어서 윗면과 같은 껍질/흰살/씨 텍스처를
-    // 입힌다(createMelonCapTexture()를 다시 호출해 씨 위치는 자연스럽게 다르게).
-    new THREE.MeshPhysicalMaterial({ map: createMelonCapTexture(), roughness: 0.35, clearcoat: 0.55, clearcoatRoughness: 0.2 })
-  ]
-);
-watermelonFloat.position.copy(MELON_POSITION);
-// 원기둥은 기본적으로 원판이 Y축에 수직으로 눕는다(윗면(+Y)이 카메라가 아니라
-// 화면 위쪽을 향함) - +90도로 돌려야 +Y가 카메라 쪽(+Z)을 보게 된다(-90도로
-// 돌리면 +Y가 화면 안쪽(-Z)을 향해버려서 카메라엔 무늬 없는 아랫면만 보였다).
-// 입체감을 위해 살짝만 더 기울인다.
-watermelonFloat.rotation.x = Math.PI / 2 - 0.15;
+// 위/아랫면(과육) 위에 흩뿌릴 씨앗 - 납작하게 눌러 늘인 작은 구체를 여러 개
+// 자식으로 붙인다. theta(0~PI)와 반지름(중심축 근처는 비워 흰살/껍질 영역은
+// 피함)을 랜덤으로 뽑아 로컬 좌표에 바로 배치한다(텍스처 UV를 안 거치므로
+// 극지방 왜곡과 무관하다).
+function addMelonSeeds(parent, y, count) {
+  const seedMat = new THREE.MeshStandardMaterial({ color: '#1a1208', roughness: 0.6 });
+  for (let i = 0; i < count; i++) {
+    const theta = Math.random() * Math.PI;
+    const r = Math.random() * 4.2;
+    const seed = new THREE.Mesh(new THREE.SphereGeometry(0.32, 6, 4), seedMat);
+    seed.scale.set(1, 0.22, 1.8);
+    seed.rotation.y = Math.random() * Math.PI * 2;
+    seed.position.set(r * Math.sin(theta), y, r * Math.cos(theta));
+    parent.add(seed);
+  }
+}
 
-// 버그 수정 - CylinderGeometry는 thetaLength를 반원으로 줘도 잘린 단면(반원의
-// 양 끝)을 자동으로 막아주지 않는다. 가만히 있을 땐 안쪽이 안 보여 티가 안
-// 났지만, animate()에서 회전시키면 그 뚫린 단면이 카메라를 향하면서 "다른
-// 부분은 모델링이 아예 안 된" 것처럼 속이 뻥 뚫려 보였다. theta=0과 theta=PI
-// 두 단면은 공교롭게도 같은 평면(x=0) 위에 있어서, 지름 전체 너비의 평면
-// 하나로 한 번에 막을 수 있다.
+const MELON_POSITION = new THREE.Vector3(-2, 11, -58);
+// 단면 프로필(중심축 끝점 포함) - 위쪽 극점(0.01,1.3)에서 평평하게 캡
+// 가장자리(5.4)까지 나갔다가, 테두리가 통통하게 부풀고(6.3), 다시 아래쪽
+// 캡 가장자리를 지나 아래쪽 극점(0.01,-1.3)으로 좁아진다.
+const MELON_PROFILE = [
+  { r: 0.01, y: 1.3 },
+  { r: 5.4, y: 1.3 },
+  { r: 6.0, y: 1.05 },
+  { r: 6.25, y: 0.55 },
+  { r: 6.3, y: 0.0 },
+  { r: 6.25, y: -0.55 },
+  { r: 6.0, y: -1.05 },
+  { r: 5.4, y: -1.3 },
+  { r: 0.01, y: -1.3 }
+];
+
+const watermelonFloat = new THREE.Mesh(
+  new THREE.LatheGeometry(MELON_PROFILE.map(function (p) { return new THREE.Vector2(p.r, p.y); }), 96, 0, Math.PI),
+  new THREE.MeshPhysicalMaterial({ map: createMelonBandTexture(), roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.2 })
+);
+addMelonSeeds(watermelonFloat, 1.31, 22);
+addMelonSeeds(watermelonFloat, -1.31, 22);
+
+// 버그 수정(이전 라운드) - 반원(thetaLength=PI)짜리 회전체는 잘린 단면 두
+// 곳을 자동으로 막아주지 않는다. theta=0과 theta=PI 단면은 공교롭게 같은
+// 평면(x=0) 위에 있어서, 프로필을 그대로 따라 그린 2D Shape(좌우 대칭) 하나로
+// 통통하게 부푼 옆모습까지 정확히 채울 수 있다.
+const melonCutShape = new THREE.Shape();
+melonCutShape.moveTo(0, MELON_PROFILE[0].y);
+MELON_PROFILE.forEach(function (p) { melonCutShape.lineTo(p.r, p.y); });
+for (let i = MELON_PROFILE.length - 1; i >= 0; i--) {
+  melonCutShape.lineTo(-MELON_PROFILE[i].r, MELON_PROFILE[i].y);
+}
+melonCutShape.closePath();
 const melonCutFace = new THREE.Mesh(
-  new THREE.PlaneGeometry(6.3 * 2, 2.6),
+  new THREE.ShapeGeometry(melonCutShape),
   new THREE.MeshPhysicalMaterial({ color: '#c23b33', roughness: 0.5, side: THREE.DoubleSide })
 );
-melonCutFace.rotation.y = Math.PI / 2;
+melonCutFace.rotation.y = -Math.PI / 2;
 watermelonFloat.add(melonCutFace);
 
+watermelonFloat.position.copy(MELON_POSITION);
+// 기본적으로 Y축에 수직으로 눕는다(윗면(+Y)이 카메라가 아니라 화면 위쪽을
+// 향함) - +90도로 돌려야 +Y가 카메라 쪽(+Z)을 보게 된다(-90도로 돌리면 +Y가
+// 화면 안쪽(-Z)을 향해버려서 카메라엔 무늬 없는 아랫면만 보였다). 입체감을
+// 위해 살짝만 더 기울인다.
+watermelonFloat.rotation.x = Math.PI / 2 - 0.15;
 scene.add(watermelonFloat);
 
 // ------------------------------------------------------------
