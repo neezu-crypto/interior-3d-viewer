@@ -912,6 +912,20 @@ watermelonFloat.position.copy(MELON_POSITION);
 // 돌리면 +Y가 화면 안쪽(-Z)을 향해버려서 카메라엔 무늬 없는 아랫면만 보였다).
 // 입체감을 위해 살짝만 더 기울인다.
 watermelonFloat.rotation.x = Math.PI / 2 - 0.15;
+
+// 버그 수정 - CylinderGeometry는 thetaLength를 반원으로 줘도 잘린 단면(반원의
+// 양 끝)을 자동으로 막아주지 않는다. 가만히 있을 땐 안쪽이 안 보여 티가 안
+// 났지만, animate()에서 회전시키면 그 뚫린 단면이 카메라를 향하면서 "다른
+// 부분은 모델링이 아예 안 된" 것처럼 속이 뻥 뚫려 보였다. theta=0과 theta=PI
+// 두 단면은 공교롭게도 같은 평면(x=0) 위에 있어서, 지름 전체 너비의 평면
+// 하나로 한 번에 막을 수 있다.
+const melonCutFace = new THREE.Mesh(
+  new THREE.PlaneGeometry(6.3 * 2, 2.6),
+  new THREE.MeshPhysicalMaterial({ color: '#c23b33', roughness: 0.5, side: THREE.DoubleSide })
+);
+melonCutFace.rotation.y = Math.PI / 2;
+watermelonFloat.add(melonCutFace);
+
 scene.add(watermelonFloat);
 
 // ------------------------------------------------------------
