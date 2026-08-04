@@ -499,21 +499,14 @@ const sidePanel = document.getElementById('sidePanel');
 const panelHandle = document.getElementById('panelHandle');
 const appEl = document.getElementById('app');
 
-// 정석 틸트시프트 블러 - 이 맵은 정확한 탑뷰라, 항공/드론 사진을 미니어처처럼
-// 보이게 하는 틸트시프트 기법을 그대로 적용한다. 화면 세로축(vUv.y) 기준으로
-// u_tilt_center 주변 u_tilt_focus 폭만큼은 완전히 선명(블러 0)하게 두고, 거기서
-// u_tilt_range만큼 멀어질수록 9탭 가우시안 커널의 샘플 반경(texel)을 0→u_amount로
-// 부드럽게 키운다 - 위/아래 가장자리로 갈수록 블러가 강해지는 구조. 분리 패스가
-// 아닌 이유는 이 정도 세기에선 수평/수직 2패스로 나눌 필요가 없어서다.
-// u_resolution은 fitCanvas()에서 실제 드로잉 버퍼 픽셀 크기로 갱신한다.
+// 화면 전체에 균일한 블러 - 9탭 가우시안 커널 한 번(분리 패스 아님, 이 정도
+// 세기에선 수평/수직 2패스로 나눌 필요가 없다). u_resolution은 fitCanvas()에서
+// 실제 드로잉 버퍼 픽셀 크기로 갱신한다.
 const BlurShader = {
   uniforms: {
     tDiffuse: { value: null },
     u_resolution: { value: new THREE.Vector2(1, 1) },
-    u_amount: { value: 2.6 },
-    u_tilt_center: { value: 0.5 },
-    u_tilt_focus: { value: 0.10 },
-    u_tilt_range: { value: 0.28 }
+    u_amount: { value: 2.6 }
   },
   vertexShader:
     'varying vec2 vUv;' +
@@ -521,12 +514,9 @@ const BlurShader = {
   fragmentShader:
     'precision mediump float;' +
     'uniform sampler2D tDiffuse; uniform vec2 u_resolution; uniform float u_amount;' +
-    'uniform float u_tilt_center; uniform float u_tilt_focus; uniform float u_tilt_range;' +
     'varying vec2 vUv;' +
     'void main() {' +
-    '  float tilt_dist = abs(vUv.y - u_tilt_center);' +
-    '  float tilt = smoothstep(u_tilt_focus, u_tilt_focus + u_tilt_range, tilt_dist);' +
-    '  vec2 texel = (1.0 / u_resolution) * u_amount * tilt;' +
+    '  vec2 texel = (1.0 / u_resolution) * u_amount;' +
     '  vec4 sum = vec4(0.0);' +
     '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0, -1.0)) * 0.0625;' +
     '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0, -1.0)) * 0.125;' +
@@ -993,7 +983,7 @@ watermelonFloat.rotation.x = Math.PI / 2 - 0.15;
 scene.add(watermelonFloat);
 
 // ------------------------------------------------------------
-// 후처리 - RenderPass + 틸트시프트 블러.
+// 후처리 - RenderPass + 화면 전체 블러.
 // ------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
