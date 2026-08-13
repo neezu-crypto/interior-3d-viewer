@@ -559,6 +559,13 @@ const bubbleTexture = textureLoader.load('textures/bubbles/bubble-1.png', functi
 });
 bubbleTexture.colorSpace = THREE.SRGBColorSpace;
 
+// 방울 텍스처의 하이라이트가 순백색이라 노을 배경과 톤이 안 맞는 괴리감이 있었다 -
+// SpriteMaterial.color(텍스처에 곱해지는 틴트)로 살짝 노을빛을 입힌다. 화면 아래(주황
+// 노을에 가까운 쪽)일수록 따뜻한 톤을, 위(보랏빛 하늘)일수록 차분한 라벤더 톤을 섞어서
+// 방울이 떠 있는 높이에 따라 배경과 자연스럽게 어울리게 한다.
+const BUBBLE_TINT_BOTTOM = new THREE.Color(0xffd7ae);
+const BUBBLE_TINT_TOP = new THREE.Color(0xd8cdec);
+
 // staticMode(true)면 화면 전체에 흩어 놓고 그 자리에서 움직이지 않는다
 // (prefers-reduced-motion 대응 - 정적인 한 프레임만 보여주고 계속 생성/이동은 켜지 않는다).
 function spawnBubble(staticMode) {
@@ -571,8 +578,10 @@ function spawnBubble(staticMode) {
   const x = staticMode
     ? (Math.random() * 2 - 1) * backdropWidth * 0.5
     : backdropWidth / 2 + baseScale;
+  const heightT = Math.min(1, Math.max(0, (y / (backdropHeight * 0.47) + 1) / 2)); // 0=아래(주황) 1=위(라벤더)
+  const tint = BUBBLE_TINT_BOTTOM.clone().lerp(BUBBLE_TINT_TOP, heightT);
   const mat = new THREE.SpriteMaterial({
-    map: bubbleTexture, transparent: true, depthWrite: false,
+    map: bubbleTexture, color: tint, transparent: true, depthWrite: false,
     rotation: Math.random() * Math.PI * 2,
     opacity: staticMode ? (0.55 + Math.random() * 0.4) : 0
   });
