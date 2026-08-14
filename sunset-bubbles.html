@@ -185,6 +185,21 @@
   }
   #presetSaveBtn:hover { background: #e8a657; }
 
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    margin: 0 0 8px;
+  }
+  #bgToggleBtn.active, #blurToggleBtn.active {
+    background: rgba(232, 166, 87, 0.85);
+    color: #1a1410;
+    border-color: rgba(232, 166, 87, 0.85);
+  }
+
   .panel-divider {
     height: 1px;
     background: rgba(255,255,255,0.14);
@@ -311,6 +326,17 @@
 
     <p class="panel-hint">화면을 더블클릭하면 전체화면으로 전환·복귀돼요. 아래 갤러리에 게시된 프리셋을 적용하거나 OBS 브라우저 소스용 링크를 복사해 쓸 수 있어요. 새 프리셋 저장·공유·게시/삭제는 관리자 계정만 가능해요. 소리는 기본적으로 꺼져 있어요(방송 사고 방지).</p>
 
+    <div class="toggle-row">
+      <span>🖼️ 배경 사진</span>
+      <button id="bgToggleBtn" type="button" class="preset-btn">켜짐</button>
+    </div>
+    <div class="toggle-row">
+      <span>🌫️ 전체 블러</span>
+      <button id="blurToggleBtn" type="button" class="preset-btn">꺼짐</button>
+    </div>
+    <p class="panel-hint" style="margin-top:8px;">배경 사진을 끄면 화면이 완전히 투명해져서, OBS 브라우저 소스에 추가하면 방송 화면 위에 비눗방울만 겹쳐 보여요.</p>
+    <div class="panel-divider"></div>
+
     <div id="localPresetSection" style="display:none;">
       <p class="panel-title">프리셋 (관리자 전용)</p>
       <div class="preset-save-row">
@@ -361,6 +387,7 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ------------------------------------------------------------
@@ -507,7 +534,12 @@ const appEl = document.getElementById('app');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 3000);
 
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+// alpha:true - 배경 사진을 끄면(아래 "배경 on/off" 토글) 캔버스가 완전히 투명해져서,
+// OBS 브라우저 소스에서 배경 없이 비눗방울만 방송 화면 위에 겹쳐 보이게 할 수 있다.
+// 배경판이 켜져 있을 때는 화면을 항상 꽉 채우는 불투명한 사진이라 이 알파는 어차피
+// 안 보인다.
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -626,12 +658,89 @@ function updateBubbles(dt) {
 }
 
 // ------------------------------------------------------------
-// 후처리 - RenderPass만 사용. 이 배경은 정적 사진 + 은은한 비눗방울이라 블룸이나
-// 틸트시프트 같은 추가 효과 없이도 충분하다(불필요한 효과를 더하지 않는다).
+// 화면 전체에 균일한 블러 - 9탭 가우시안 커널 한 번(분리 패스 아님, 이 정도
+// 세기에선 수평/수직 2패스로 나눌 필요가 없다). u_resolution은 fitCanvas()에서
+// 실제 드로잉 버퍼 픽셀 크기로 갱신한다. 사용자가 패널에서 켜고 끌 수 있는
+// 선택 효과라 기본값은 꺼짐(blurPass.enabled=false) - ocean-pool.html에서
+// 이 셰이더를 그대로 가져왔다(거기서는 상시 적용이라 사용자 요청으로
+// 제거했었는데, 여기서는 토글 가능한 옵션으로 다시 쓴다).
+// ------------------------------------------------------------
+const BlurShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    u_resolution: { value: new THREE.Vector2(1, 1) },
+    u_amount: { value: 2.6 }
+  },
+  vertexShader:
+    'varying vec2 vUv;' +
+    'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:
+    'precision mediump float;' +
+    'uniform sampler2D tDiffuse; uniform vec2 u_resolution; uniform float u_amount;' +
+    'varying vec2 vUv;' +
+    'void main() {' +
+    '  vec2 texel = (1.0 / u_resolution) * u_amount;' +
+    '  vec4 sum = vec4(0.0);' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0, -1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0, -1.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0, -1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0,  0.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0,  0.0)) * 0.25;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0,  0.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2(-1.0,  1.0)) * 0.0625;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 0.0,  1.0)) * 0.125;' +
+    '  sum += texture2D(tDiffuse, vUv + texel * vec2( 1.0,  1.0)) * 0.0625;' +
+    '  gl_FragColor = sum;' +
+    '}'
+};
+
+// ------------------------------------------------------------
+// 후처리 - RenderPass + (토글 가능한) 화면 전체 블러 + OutputPass.
 // ------------------------------------------------------------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+const blurPass = new ShaderPass(BlurShader);
+blurPass.enabled = false;
+composer.addPass(blurPass);
 composer.addPass(new OutputPass());
+
+// 배경 사진 켜고 끄기 - 끄면 배경판(backdrop)만 숨기고, 렌더러가 alpha:true +
+// 클리어 알파 0으로 만들어져 있어 그 자리가 캔버스 레벨에서 완전히 투명해진다.
+// 다만 캔버스가 투명해도 html/body/#app에 걸어둔 불투명 배경색이 그 뒤에서
+// 그대로 비쳐 보이므로, 이 요소들의 배경도 함께 지워야 실제로 투명해진다
+// (OBS 브라우저 소스는 페이지 자체가 투명해야 그 뒤로 방송 화면이 비친다).
+const BG_TOGGLE_KEY = 'sunsetBubbles.bgEnabled';
+const bgToggleBtn = document.getElementById('bgToggleBtn');
+const TRANSPARENT_BG_ELS = [document.documentElement, document.body, appEl, loadingEl];
+function setBackdropEnabled(enabled) {
+  backdrop.visible = enabled;
+  TRANSPARENT_BG_ELS.forEach(function (el) { el.style.background = enabled ? '' : 'transparent'; });
+  bgToggleBtn.textContent = enabled ? '켜짐' : '꺼짐';
+  bgToggleBtn.classList.toggle('active', enabled);
+}
+setBackdropEnabled(localStorage.getItem(BG_TOGGLE_KEY) !== 'false'); // 기본값은 켜짐
+bgToggleBtn.addEventListener('click', function () {
+  const next = !backdrop.visible;
+  setBackdropEnabled(next);
+  localStorage.setItem(BG_TOGGLE_KEY, String(next));
+});
+
+// 배경 블러 켜고 끄기 - 다른 배경 페이지들의 프리셋/패널 위치와 달리 이 값은
+// 이 페이지에서만 의미가 있는 설정이라 별도 localStorage 키로 페이지별 취향을
+// 기억한다(기본값은 꺼짐).
+const BLUR_TOGGLE_KEY = 'sunsetBubbles.blurEnabled';
+const blurToggleBtn = document.getElementById('blurToggleBtn');
+function setBlurEnabled(enabled) {
+  blurPass.enabled = enabled;
+  blurToggleBtn.textContent = enabled ? '켜짐' : '꺼짐';
+  blurToggleBtn.classList.toggle('active', enabled);
+}
+setBlurEnabled(localStorage.getItem(BLUR_TOGGLE_KEY) === 'true');
+blurToggleBtn.addEventListener('click', function () {
+  const next = !blurPass.enabled;
+  setBlurEnabled(next);
+  localStorage.setItem(BLUR_TOGGLE_KEY, String(next));
+});
 
 // ------------------------------------------------------------
 // 프리셋 - 이 페이지는 조정 가능한 설정이 없어서, "저장"은 이 배경 페이지로
@@ -1009,6 +1118,7 @@ function fitCanvas() {
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h);
   composer.setSize(w, h);
+  blurPass.uniforms.u_resolution.value.set(w * pr, h * pr);
 }
 window.addEventListener('resize', fitCanvas);
 fitCanvas();
