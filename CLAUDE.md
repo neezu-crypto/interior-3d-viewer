@@ -136,3 +136,9 @@ Playwright로 스크린샷/콘솔 에러를 확인하되, **헤드리스 테스�
   codebase를 반드시 지정할 것.
 - `database.rules.json`의 `presetGallery`/`presetMergeTickets`/`presetMergeFailures` 외
   나머지 노드는 이 프로젝트와 무관한 다른 서비스 소유이니 건드리지 않는다.
+- **`database.rules.json` 동기화 필수(2026-08-14)**: 이 파일은 같은 RTDB를 공유하는
+  4개 레포(StreamBet-Market, soop-stock-market, interior-3d-viewer, streamer-life-game)가
+  전부 바이트 단위로 동일한 사본을 갖고 있어야 한다 — 아무 레포에서나 재배포하면
+  그 레포 로컬 파일 내용으로 서버 규칙이 통째로 덮어써지기 때문. 이 파일을 수정할
+  때마다 나머지 3개 레포에도 동일한 변경을 그대로 복사(`cp`)해서 diff 0줄 확인 후
+  커밋할 것.
