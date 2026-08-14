@@ -271,7 +271,7 @@
 
     "bettingMarket": {
       "markets": {
-        ".read": "auth != null",
+        ".read": true,
         ".indexOn": ["status"],
         "$marketId": { ".write": false }
       },
@@ -319,7 +319,7 @@
       },
 
       "jackpot": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": false
       },
 
@@ -419,7 +419,7 @@
       },
 
       "rankings": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": false
       },
 
