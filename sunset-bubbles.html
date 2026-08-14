@@ -704,6 +704,33 @@ blurPass.enabled = false;
 composer.addPass(blurPass);
 composer.addPass(new OutputPass());
 
+// 배경/블러 토글 상태를 로컬 브라우저(localStorage)뿐 아니라 URL 쿼리(bg=0/1,
+// blur=0/1)로도 들고 다닐 수 있게 한다 - OBS는 지금 이 브라우저 탭과 완전히
+// 다른 크롬 인스턴스(별도 프로필)라 localStorage를 공유하지 않는다. 그래서
+// 패널에서 토글만 켜고 주소창 URL이나 기존에 복사해둔 OBS 링크를 그대로 다시
+// 복사해가면, OBS 쪽은 그 토글을 전혀 모른 채 항상 기본값(배경 켜짐/블러 꺼짐)
+// 으로만 열려서 "꺼도 방송 화면이 안 바뀌는" 문제가 생겼다. 이제 토글을 누르면
+// 그 즉시 주소창 URL도 같이 갱신되고(history.replaceState, 새로고침 없이),
+// 갤러리·프리셋의 "OBS"/"공유" 버튼이 만드는 링크에도 현재 토글 상태가 그대로
+// 붙어서 나간다.
+const toggleUrlParams = new URLSearchParams(location.search);
+
+function syncToggleParamsToAddressBar() {
+  const params = new URLSearchParams(location.search);
+  params.set('bg', backdrop.visible ? '1' : '0');
+  params.set('blur', blurPass.enabled ? '1' : '0');
+  history.replaceState(null, '', location.pathname + '?' + params.toString() + location.hash);
+}
+
+// 갤러리/프리셋의 "OBS"·"공유" 버튼이 이 페이지(sunset-bubbles.html)로 연결되는
+// 링크를 만들 때만, 지금 이 화면에 적용돼 있는 배경/블러 토글 상태를 쿼리로
+// 덧붙인다 - 다른 배경 페이지로 가는 링크에는 의미 없는 값이라 붙이지 않는다.
+function appendBubbleToggleParams(url, sceneUrl) {
+  if (sceneUrl !== 'sunset-bubbles.html') return url;
+  const sep = url.indexOf('?') === -1 ? '?' : '&';
+  return url + sep + 'bg=' + (backdrop.visible ? '1' : '0') + '&blur=' + (blurPass.enabled ? '1' : '0');
+}
+
 // 배경 사진 켜고 끄기 - 끄면 배경판(backdrop)만 숨기고, 렌더러가 alpha:true +
 // 클리어 알파 0으로 만들어져 있어 그 자리가 캔버스 레벨에서 완전히 투명해진다.
 // 다만 캔버스가 투명해도 html/body/#app에 걸어둔 불투명 배경색이 그 뒤에서
@@ -718,11 +745,16 @@ function setBackdropEnabled(enabled) {
   bgToggleBtn.textContent = enabled ? '켜짐' : '꺼짐';
   bgToggleBtn.classList.toggle('active', enabled);
 }
-setBackdropEnabled(localStorage.getItem(BG_TOGGLE_KEY) !== 'false'); // 기본값은 켜짐
+// URL에 bg 파라미터가 있으면(예: OBS 링크로 바로 열었을 때) 그걸 최우선으로 쓰고,
+// 없으면 이 브라우저에 저장해둔 마지막 선택(localStorage)을 따른다. 기본값은 켜짐.
+setBackdropEnabled(
+  toggleUrlParams.has('bg') ? toggleUrlParams.get('bg') !== '0' : localStorage.getItem(BG_TOGGLE_KEY) !== 'false'
+);
 bgToggleBtn.addEventListener('click', function () {
   const next = !backdrop.visible;
   setBackdropEnabled(next);
   localStorage.setItem(BG_TOGGLE_KEY, String(next));
+  syncToggleParamsToAddressBar();
 });
 
 // 배경 블러 켜고 끄기 - 다른 배경 페이지들의 프리셋/패널 위치와 달리 이 값은
@@ -735,11 +767,14 @@ function setBlurEnabled(enabled) {
   blurToggleBtn.textContent = enabled ? '켜짐' : '꺼짐';
   blurToggleBtn.classList.toggle('active', enabled);
 }
-setBlurEnabled(localStorage.getItem(BLUR_TOGGLE_KEY) === 'true');
+setBlurEnabled(
+  toggleUrlParams.has('blur') ? toggleUrlParams.get('blur') === '1' : localStorage.getItem(BLUR_TOGGLE_KEY) === 'true'
+);
 blurToggleBtn.addEventListener('click', function () {
   const next = !blurPass.enabled;
   setBlurEnabled(next);
   localStorage.setItem(BLUR_TOGGLE_KEY, String(next));
+  syncToggleParamsToAddressBar();
 });
 
 // ------------------------------------------------------------
@@ -854,7 +889,7 @@ function renderPresetList() {
     obsBtn.addEventListener('click', function () {
       const dir = location.pathname.replace(/[^/]*$/, '');
       const url = presets[name].sceneUrl
-        ? location.origin + dir + presets[name].sceneUrl + '?obs=1'
+        ? appendBubbleToggleParams(location.origin + dir + presets[name].sceneUrl + '?obs=1', presets[name].sceneUrl)
         : location.origin + dir + 'index.html?preset=' + encodePreset(presets[name]) + '&obs=1';
       copyToClipboard(url).then(function () {
         obsBtn.textContent = '복사됨!';
@@ -1009,7 +1044,7 @@ function renderGallery(entries) {
       incrementPresetObsLinkCountFn({ presetId: key }).catch(function (err) { console.error('OBS 링크 집계 실패:', err); }); // 통계용, 실패해도 실제 복사는 막지 않음
       const dir = location.pathname.replace(/[^/]*$/, '');
       const url = entry.config.sceneUrl
-        ? location.origin + dir + entry.config.sceneUrl + '?obs=1'
+        ? appendBubbleToggleParams(location.origin + dir + entry.config.sceneUrl + '?obs=1', entry.config.sceneUrl)
         : location.origin + dir + 'index.html?preset=' + encodePreset(entry.config) + '&obs=1';
       copyToClipboard(url).then(function () {
         obsBtn.textContent = '복사됨!';
