@@ -512,7 +512,7 @@
       "playthroughs": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid",
-          "$playId": { ".write": false }
+          ".write": false
         }
       },
       "gallery": {
