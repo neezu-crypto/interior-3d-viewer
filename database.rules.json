@@ -537,6 +537,10 @@
         ".read": true,
         "$entryId": { ".write": false }
       },
+      "galleryChoiceLogs": {
+        ".read": true,
+        "$entryId": { ".write": false }
+      },
       "galleryReports": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$reportId": { ".write": false }
