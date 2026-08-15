@@ -262,6 +262,24 @@
       }
     },
 
+    "verifiedStreamerVisits": {
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      "$entryId": {
+        ".write": false
+      }
+    },
+
+    "verifiedStreamerVisitDedup": {
+      ".read": false,
+      "$market": {
+        "$uid": {
+          "$dateKey": {
+            ".write": false
+          }
+        }
+      }
+    },
+
     "delistedStocksLog": {
       ".read": false,
       "$stockId": {
