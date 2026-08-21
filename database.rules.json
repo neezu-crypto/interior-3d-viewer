@@ -533,6 +533,12 @@
           ".write": false
         }
       },
+      "collection": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
       "gallery": {
         ".read": true,
         "$entryId": { ".write": false }
