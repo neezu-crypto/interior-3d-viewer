@@ -557,7 +557,9 @@
       },
       "multiplayerSessions": {
         ".read": true,
-        "$hostUid": { ".write": false }
+        "$hostUid": {
+          ".write": "auth != null && auth.uid === $hostUid && !newData.exists()"
+        }
       },
       "multiplayerVotes": {
         ".read": true,
