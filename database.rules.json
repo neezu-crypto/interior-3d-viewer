@@ -554,6 +554,24 @@
       "galleryReports": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$reportId": { ".write": false }
+      },
+      "multiplayerSessions": {
+        ".read": true,
+        "$hostUid": { ".write": false }
+      },
+      "multiplayerVotes": {
+        ".read": true,
+        "$hostUid": {
+          "$stageId": {
+            "$participantUid": {
+              ".write": "auth != null && auth.uid === $participantUid && root.child('lifeGame/multiplayerSessions/' + $hostUid + '/participants/' + $participantUid).exists()"
+            }
+          }
+        }
+      },
+      "multiplayerAdShown": {
+        ".read": false,
+        "$hostUid": { ".write": false }
       }
     }
   }
