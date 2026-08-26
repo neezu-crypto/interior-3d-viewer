@@ -54,6 +54,9 @@
           "lastSeen": {
             ".validate": "newData.isNumber()"
           },
+          "connectedAt": {
+            ".validate": "newData.isNumber()"
+          },
           "$other": {
             ".validate": false
           }
