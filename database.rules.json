@@ -581,6 +581,15 @@
       "worldState": {
         ".read": true,
         "$key": { ".write": false }
+      },
+      "presence": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['lastSeenAt']) && newData.child('lastSeenAt').isNumber()",
+          "lastSeenAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
       }
     }
   }
