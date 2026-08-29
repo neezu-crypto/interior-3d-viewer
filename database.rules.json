@@ -596,6 +596,10 @@
         "$key": {
           "$date": { ".write": false }
         }
+      },
+      "occupationGauge": {
+        ".read": true,
+        "$group": { ".write": false }
       }
     }
   }
