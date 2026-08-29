@@ -577,6 +577,10 @@
       "multiplayerAdShown": {
         ".read": false,
         "$hostUid": { ".write": false }
+      },
+      "worldState": {
+        ".read": true,
+        "$key": { ".write": false }
       }
     }
   }
