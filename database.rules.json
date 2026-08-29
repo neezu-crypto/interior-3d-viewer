@@ -590,6 +590,12 @@
           "lastSeenAt": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
         }
+      },
+      "worldStateHistory": {
+        ".read": true,
+        "$key": {
+          "$date": { ".write": false }
+        }
       }
     }
   }
