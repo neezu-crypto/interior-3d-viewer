@@ -600,6 +600,10 @@
       "occupationGauge": {
         ".read": true,
         "$group": { ".write": false }
+      },
+      "vehicleOwners": {
+        ".read": false,
+        "$uid": { ".write": false }
       }
     }
   }
