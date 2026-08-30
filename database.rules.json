@@ -604,6 +604,14 @@
       "vehicleOwners": {
         ".read": false,
         "$uid": { ".write": false }
+      },
+      "botConfig": {
+        ".read": false,
+        ".write": false
+      },
+      "bots": {
+        ".read": false,
+        "$uid": { ".write": false }
       }
     }
   }
