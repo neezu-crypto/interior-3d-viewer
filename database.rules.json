@@ -640,6 +640,42 @@
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$entryId": { ".write": false }
       }
+    },
+
+    "gallery": {
+      "images": {
+        ".read": true,
+        ".indexOn": ["category", "streamerId", "createdAt"],
+        "$imageId": { ".write": false }
+      },
+      "likes": {
+        "$imageId": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": false
+          }
+        }
+      },
+      "userLikes": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$imageId": { ".write": false }
+        }
+      },
+      "comments": {
+        ".read": true,
+        "$imageId": {
+          "$commentId": { ".write": false }
+        }
+      },
+      "imageReports": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$reportId": { ".write": false }
+      },
+      "auditLog": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$entryId": { ".write": false }
+      }
     }
   }
 }
