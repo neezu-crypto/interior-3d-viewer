@@ -684,6 +684,7 @@
       },
       "unlockRequests": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        ".indexOn": ["streamerId"],
         "$requestId": { ".write": false }
       },
       "auditLog": {
