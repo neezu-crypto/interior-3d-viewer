@@ -662,6 +662,12 @@
           "$imageId": { ".write": false }
         }
       },
+      "profiles": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
       "comments": {
         ".read": true,
         "$imageId": {
@@ -671,6 +677,14 @@
       "imageReports": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$reportId": { ".write": false }
+      },
+      "unlockedStreamers": {
+        ".read": true,
+        "$streamerId": { ".write": false }
+      },
+      "unlockRequests": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$requestId": { ".write": false }
       },
       "auditLog": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
