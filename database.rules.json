@@ -648,6 +648,10 @@
         ".indexOn": ["category", "streamerId", "createdAt"],
         "$imageId": { ".write": false }
       },
+      "imageStats": {
+        ".read": true,
+        "$imageId": { ".write": false }
+      },
       "likes": {
         "$imageId": {
           "$uid": {
