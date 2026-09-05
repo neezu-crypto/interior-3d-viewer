@@ -662,6 +662,12 @@
           "$imageId": { ".write": false }
         }
       },
+      "hiddenImages": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$imageId": { ".write": false }
+        }
+      },
       "profiles": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid",
