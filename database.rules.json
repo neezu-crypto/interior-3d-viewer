@@ -672,6 +672,13 @@
           "$imageId": { ".write": false }
         }
       },
+      "streamerAccountLinks": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
       "profiles": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid",
