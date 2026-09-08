@@ -558,6 +558,14 @@
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$reportId": { ".write": false }
       },
+      "reviews": {
+        ".read": true,
+        "$uid": { ".write": false }
+      },
+      "reviewReports": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$reportId": { ".write": false }
+      },
       "multiplayerSessions": {
         ".read": true,
         "$hostUid": {
