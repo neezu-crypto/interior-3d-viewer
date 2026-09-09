@@ -95,7 +95,7 @@
     },
 
     "cardBannerRequests": {
-      ".read": false,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$requestId": {
         ".write": false
       }
