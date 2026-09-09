@@ -566,6 +566,14 @@
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
         "$reportId": { ".write": false }
       },
+      "sponsorRequests": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        "$requestId": { ".write": false }
+      },
+      "currentSponsor": {
+        ".read": true,
+        ".write": false
+      },
       "multiplayerSessions": {
         ".read": true,
         "$hostUid": {
