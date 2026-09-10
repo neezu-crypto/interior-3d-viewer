@@ -10,6 +10,17 @@
       }
     },
 
+    "streamerNames": {
+      ".read": true,
+      "$stockId": {
+        ".write": false
+      }
+    },
+    "streamerNamesMeta": {
+      ".read": true,
+      ".write": false
+    },
+
     "candlesticks": {
       "$stockId": {
         ".read": true,
