@@ -723,7 +723,11 @@
         ".indexOn": ["imageId"],
         "$reportId": { ".write": false }
       },
-      "unlockedStreamers": {
+      "streamerFirstUpload": {
+        ".read": true,
+        "$streamerId": { ".write": false }
+      },
+      "streamerUnlockedUntil": {
         ".read": true,
         "$streamerId": { ".write": false }
       },
