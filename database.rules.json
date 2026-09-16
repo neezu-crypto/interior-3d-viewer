@@ -294,6 +294,11 @@
       }
     },
 
+    "onyuVn": {
+      ".read": false,
+      ".write": false
+    },
+
     "delistedStocksLog": {
       ".read": false,
       "$stockId": {
