@@ -739,6 +739,15 @@
         ".indexOn": ["imageId"],
         "$reportId": { ".write": false }
       },
+      "commentReports": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        ".indexOn": ["commentId", "createdAt"],
+        "$reportId": { ".write": false }
+      },
+      "commentReportsByUser": {
+        ".read": false,
+        "$uid": { ".write": false }
+      },
       "streamerFirstUpload": {
         ".read": true,
         "$streamerId": { ".write": false }
