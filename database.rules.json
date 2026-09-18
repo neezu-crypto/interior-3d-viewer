@@ -93,6 +93,7 @@
 
     "bannerRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -100,6 +101,7 @@
 
     "chartBannerRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -107,6 +109,7 @@
 
     "cardBannerRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -121,6 +124,7 @@
 
     "cashChargeRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -128,6 +132,7 @@
 
     "treasureChestRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -142,6 +147,7 @@
 
     "pinRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -156,6 +162,7 @@
 
     "relayRoomRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -170,6 +177,7 @@
 
     "unfreezeDonationRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -177,6 +185,7 @@
 
     "listingRequests": {
       ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+      ".indexOn": ["status"],
       "$requestId": {
         ".write": false
       }
@@ -377,6 +386,7 @@
 
       "chestPurchaseRequests": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        ".indexOn": ["status"],
         "$requestId": { ".write": false }
       },
 
@@ -584,6 +594,7 @@
       },
       "sponsorRequests": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        ".indexOn": ["status"],
         "$requestId": { ".write": false }
       },
       "currentSponsor": {
