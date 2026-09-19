@@ -4,10 +4,15 @@
     ".write": false,
 
     "stocks": {
-      ".read": true,
+      ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
       "$stockId": {
         ".write": false
       }
+    },
+
+    "stocksPublic": {
+      ".read": true,
+      "$stockId": { ".write": false }
     },
 
     "streamerNames": {
@@ -43,6 +48,11 @@
         ".write": false
       },
       "profitEntries": {
+        ".read": false,
+        ".write": false,
+        ".indexOn": ["value"]
+      },
+      "profitEntriesPublic": {
         ".read": true,
         ".write": false,
         ".indexOn": ["value"]
@@ -58,7 +68,7 @@
 
     "presence": {
       "$appId": {
-        ".read": "auth != null",
+        ".read": false,
         "$uid": {
           ".write": "auth != null && auth.uid === $uid",
           ".validate": "!newData.exists() || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber())",
@@ -278,11 +288,22 @@
     },
 
     "streamerVerifications": {
-      ".read": true,
+      ".read": false,
       ".indexOn": ["uid", "soopId", "nickname"],
       "$id": {
         ".write": false
       }
+    },
+
+    "streamerVerificationsPublic": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": ["soopId", "nickname"]
+    },
+
+    "privateUserIds": {
+      ".read": false,
+      ".write": false
     },
 
     "verifiedStreamerVisits": {
@@ -317,6 +338,12 @@
 
     "bettingMarket": {
       "markets": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
+        ".indexOn": ["status"],
+        "$marketId": { ".write": false }
+      },
+
+      "marketsPublic": {
         ".read": true,
         ".indexOn": ["status"],
         "$marketId": { ".write": false }
@@ -370,7 +397,13 @@
       },
 
       "jackpotWins": {
-        ".read": "auth != null",
+        ".read": false,
+        ".indexOn": ["at"],
+        "$winId": { ".write": false }
+      },
+
+      "jackpotWinsPublic": {
+        ".read": true,
         ".indexOn": ["at"],
         "$winId": { ".write": false }
       },
@@ -378,7 +411,7 @@
       "likes": {
         "$marketId": {
           "$uid": {
-            ".read": "auth != null",
+            ".read": "auth != null && auth.uid === $uid",
             ".write": "auth != null && auth.uid === $uid"
           }
         }
@@ -445,14 +478,28 @@
       },
 
       "blockedNicknames": {
-        ".read": "auth != null",
+        ".read": false,
         "$targetId": { ".write": false }
       },
 
-      "profiles": {
+      "blockedNicknamesPublic": {
         ".read": "auth != null",
+        ".write": false
+      },
+
+      "profiles": {
+        ".read": false,
         ".indexOn": ["nickname"],
-        "$uid": { ".write": false }
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": false
+        }
+      },
+
+      "publicProfiles": {
+        ".read": "auth != null",
+        ".write": false,
+        ".indexOn": ["nickname"]
       },
 
       "auditLog": {
@@ -466,6 +513,11 @@
       },
 
       "rankings": {
+        ".read": false,
+        ".write": false
+      },
+
+      "rankingsPublic": {
         ".read": true,
         ".write": false
       },
@@ -491,11 +543,16 @@
     },
 
     "presetGallery": {
-      ".read": true,
+      ".read": false,
       ".indexOn": ["ownerUid"],
       "$presetId": {
         ".write": false
       }
+    },
+
+    "presetGalleryPublic": {
+      ".read": true,
+      "$presetId": { ".write": false }
     },
 
     "presetMergeTickets": {
@@ -569,6 +626,10 @@
         }
       },
       "gallery": {
+        ".read": false,
+        "$entryId": { ".write": false }
+      },
+      "galleryPublic": {
         ".read": true,
         "$entryId": { ".write": false }
       },
@@ -585,8 +646,12 @@
         "$reportId": { ".write": false }
       },
       "reviews": {
-        ".read": true,
+        ".read": false,
         "$uid": { ".write": false }
+      },
+      "reviewsPublic": {
+        ".read": true,
+        ".write": false
       },
       "reviewReports": {
         ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).exists()",
@@ -602,20 +667,28 @@
         ".write": false
       },
       "multiplayerSessions": {
-        ".read": true,
+        ".read": false,
         "$hostUid": {
           ".write": "auth != null && auth.uid === $hostUid && !newData.exists()"
         }
       },
-      "multiplayerVotes": {
+      "multiplayerSessionsPublic": {
         ".read": true,
+        ".write": false
+      },
+      "multiplayerVotes": {
+        ".read": false,
         "$hostUid": {
           "$stageId": {
             "$participantUid": {
-              ".write": "auth != null && auth.uid === $participantUid && root.child('lifeGame/multiplayerSessions/' + $hostUid + '/participants/' + $participantUid).exists()"
+              ".write": false
             }
           }
         }
+      },
+      "multiplayerVotesPublic": {
+        ".read": true,
+        ".write": false
       },
       "multiplayerAdShown": {
         ".read": false,
@@ -626,7 +699,7 @@
         "$key": { ".write": false }
       },
       "presence": {
-        ".read": true,
+        ".read": false,
         "$uid": {
           ".write": "auth != null && auth.uid === $uid",
           ".validate": "newData.hasChildren(['lastSeenAt']) && newData.child('lastSeenAt').isNumber()",
@@ -672,6 +745,10 @@
         }
       },
       "rooms": {
+        ".read": false,
+        "$roomId": { ".write": false }
+      },
+      "roomsPublic": {
         ".read": true,
         "$roomId": { ".write": false }
       },
@@ -687,6 +764,11 @@
 
     "gallery": {
       "images": {
+        ".read": false,
+        ".indexOn": ["category", "streamerId", "createdAt"],
+        "$imageId": { ".write": false }
+      },
+      "imagesPublic": {
         ".read": true,
         ".indexOn": ["category", "streamerId", "createdAt"],
         "$imageId": { ".write": false }
@@ -729,6 +811,12 @@
         }
       },
       "comments": {
+        ".read": false,
+        "$imageId": {
+          "$commentId": { ".write": false }
+        }
+      },
+      "commentsPublic": {
         ".read": true,
         "$imageId": {
           "$commentId": { ".write": false }

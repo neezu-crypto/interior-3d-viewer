@@ -413,7 +413,7 @@ const firebaseConfig = {
 };
 const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
-const galleryRef = ref(db, 'presetGallery');
+const galleryRef = ref(db, 'presetGalleryPublic');
 
 // 08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
 // 하드코딩된 링크를 대체한다. 노드가 비어있거나 조회 실패 시 기존 하드코딩된

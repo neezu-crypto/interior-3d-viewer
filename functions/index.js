@@ -129,6 +129,11 @@ exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
     ownerIsRealAccount: isRealAccount(request),
     createdAt: Date.now()
   });
+  await db.ref('presetGalleryPublic/' + newRef.key).set({
+    name: name,
+    config: config,
+    createdAt: Date.now(),
+  });
 
   return { id: newRef.key };
 });
@@ -171,6 +176,10 @@ exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
   }
 
   await nodeRef.update(updates);
+  const publicUpdates = Object.assign({}, updates);
+  delete publicUpdates.ownerUid;
+  delete publicUpdates.ownerIsRealAccount;
+  await db.ref('presetGalleryPublic/' + id).update(publicUpdates);
   return { ok: true };
 });
 
@@ -190,7 +199,25 @@ exports.deletePreset = onCall({ region: 'us-central1' }, async (request) => {
   }
 
   await nodeRef.remove();
+  await db.ref('presetGalleryPublic/' + id).remove();
   return { ok: true };
+});
+
+// 공개 ownerUid 제거 미러를 기존 게시물에도 채운다. 관리자만 실행하며 재실행 가능하다.
+exports.migratePresetPublicIdentityData = onCall({ region: 'us-central1' }, async (request) => {
+  await requireAdmin(request);
+  const db = getDatabase();
+  const snap = await db.ref('presetGallery').get();
+  const updates = {};
+  snap.forEach((child) => {
+    const value = child.val() || {};
+    const publicValue = Object.assign({}, value);
+    delete publicValue.ownerUid;
+    delete publicValue.ownerIsRealAccount;
+    updates['presetGalleryPublic/' + child.key] = publicValue;
+  });
+  if (Object.keys(updates).length) await db.ref().update(updates);
+  return { migrated: Object.keys(updates).length };
 });
 
 // 익명 계정으로 Google 로그인을 시도했는데 그 Google 계정이 이미 다른 uid로 가입돼 있는 경우
