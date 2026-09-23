@@ -606,6 +606,85 @@
       }
     },
 
+    "streamerMessenger": {
+      "publicRooms": {
+        ".read": "auth != null",
+        ".write": false,
+        ".indexOn": ["streamerNickname", "visibility"]
+      },
+      "rooms": {
+        "$roomId": {
+          "meta": {
+            ".read": "auth != null && (root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('streamerMessenger').child('rooms').child($roomId).child('members').child(auth.uid).child('status').val() === 'active' || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+            ".write": false
+          },
+          "members": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid === $uid || root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+              ".write": false
+            }
+          },
+          "applications": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid === $uid || root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+              ".write": false
+            }
+          },
+          "blocked": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid === $uid || root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+              ".write": false
+            }
+          }
+        }
+      },
+      "chat": {
+        "$roomId": {
+          "streamerTimeline": {
+            ".read": "auth != null && (root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+            ".write": false,
+            ".indexOn": ["createdAt"],
+            "$messageId": { ".write": false }
+          },
+          "broadcast": {
+            ".read": "auth != null && (root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('streamerMessenger').child('rooms').child($roomId).child('members').child(auth.uid).child('status').val() === 'active')",
+            ".write": false,
+            ".indexOn": ["createdAt"],
+            "$messageId": { ".write": false }
+          },
+          "private": {
+            "$uid": {
+              ".read": "auth != null && (auth.uid === $uid && root.child('streamerMessenger').child('rooms').child($roomId).child('members').child(auth.uid).child('status').val() === 'active' || root.child('streamerMessenger').child('rooms').child($roomId).child('meta').child('ownerUid').val() === auth.uid || root.child('adminCenter/adminUids').child(auth.uid).val() === true)",
+              ".write": false,
+              ".indexOn": ["createdAt"],
+              "$messageId": { ".write": false }
+            }
+          }
+        }
+      },
+      "reports": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).val() === true",
+        ".write": false,
+        ".indexOn": ["createdAt", "roomId"],
+        "$reportId": { ".write": false }
+      },
+      "reportEvidence": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).val() === true",
+        ".write": false,
+        "$reportId": { ".write": false }
+      },
+      "auditLog": {
+        ".read": "auth != null && root.child('adminCenter/adminUids').child(auth.uid).val() === true",
+        ".write": false,
+        ".indexOn": ["at"],
+        "$entryId": { ".write": false }
+      },
+      "rateLimits": {
+        ".read": false,
+        ".write": false
+      }
+    },
+
     "analytics": {
       "presenceHourly": {
         ".read": false,
