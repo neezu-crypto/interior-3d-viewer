@@ -499,7 +499,7 @@ const appEl = document.getElementById('app');
 // 후보정 셰이더 - 비네트(화면 중앙으로 시선 유도) + 필름 그레인. firework-scene.js와 동일.
 // ------------------------------------------------------------
 const VignetteShader = {
-  uniforms: { tDiffuse: { value: null }, darkness: { value: 1.1 } },
+  uniforms: { tDiffuse: { value: null }, darkness: { value: 0.55 } },
   vertexShader:
     'varying vec2 vUv;' +
     'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -539,19 +539,30 @@ const CAM_LOOK_TARGET = new THREE.Vector3(-1.6, 1.0, -3.5);
 // 씬 / 카메라 / 렌더러 - 카메라는 완전히 고정(방송 배경 관례)
 // ------------------------------------------------------------
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x6a3550, 18, 62);
+scene.fog = new THREE.Fog(0x423d49, 26, 90);
 
 // 하늘 그라디언트(남보라 -> 다홍 -> 수평선 주황) - 캔버스 텍스처를 큰 돔에 입힘
 function createSkyDome() {
   const cvs = document.createElement('canvas');
-  cvs.width = 2; cvs.height = 256;
+  cvs.width = 1024; cvs.height = 512;
   const ctx = cvs.getContext('2d');
-  const grad = ctx.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#211936');
-  grad.addColorStop(0.6, '#5c2f3d');
-  grad.addColorStop(1, '#9c5a38');
+  const grad = ctx.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0, '#17263d');
+  grad.addColorStop(0.52, '#514052');
+  grad.addColorStop(0.8, '#a45c52');
+  grad.addColorStop(1, '#e39a62');
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 2, 256);
+  ctx.fillRect(0, 0, 1024, 512);
+  const rand = mulberry32(91871);
+  ctx.filter = 'blur(18px)';
+  for (let i = 0; i < 35; i++) {
+    const x = rand() * 1024, y = 140 + rand() * 220;
+    ctx.fillStyle = i % 3 === 0 ? 'rgba(245,165,139,.045)' : 'rgba(35,43,69,.07)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 60 + rand() * 170, 8 + rand() * 23, (rand() - .5) * .13, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.filter = 'none';
   const tex = new THREE.CanvasTexture(cvs);
   tex.colorSpace = THREE.SRGBColorSpace;
   const geo = new THREE.SphereGeometry(80, 24, 16);
@@ -560,6 +571,38 @@ function createSkyDome() {
   return new THREE.Mesh(geo, mat);
 }
 scene.add(createSkyDome());
+const twilightStars = new THREE.BufferGeometry();
+const twilightPositions = [];
+const starRand = mulberry32(48237);
+for (let i = 0; i < 300; i++) {
+  twilightPositions.push((starRand() - .5) * 105, 9 + starRand() * 31, -42 - starRand() * 18);
+}
+twilightStars.setAttribute('position', new THREE.Float32BufferAttribute(twilightPositions, 3));
+scene.add(new THREE.Points(twilightStars, new THREE.PointsMaterial({ color: 0xffe4c7, size: .055, transparent: true, opacity: .57, depthWrite: false, fog: true })));
+
+// 호수 너머 능선은 단색 수평선 대신 높이가 다른 두 겹으로 원근을 만든다.
+function createDistantRidge(z, color, seed) {
+  const rand = mulberry32(seed);
+  const points = [];
+  for (let i = 0; i <= 28; i++) {
+    const x = -48 + i * 96 / 28;
+    const y = 1.0 + rand() * 1.8 + Math.sin(i * .53) * .7;
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  const verts = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    verts.push(points[i].x, -6, z, points[i].x, points[i].y, z,
+      points[i+1].x, points[i+1].y, z,
+      points[i].x, -6, z, points[i+1].x, points[i+1].y, z,
+      points[i+1].x, -6, z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  const ridge = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: true, transparent: true, opacity: 0.35, depthWrite: false }));
+  scene.add(ridge);
+}
+createDistantRidge(-46, 0x635564, 423);
 
 const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 200);
 camera.position.copy(CAMERA_POS);
@@ -571,26 +614,79 @@ renderer.toneMappingExposure = 1.1;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 // ---- 조명: 황혼 컨셉 (앰비언트 남보라 + 캠프파이어 warm point light) ----
-const ambient = new THREE.HemisphereLight(0x4a3a6a, 0x1a2018, 0.55);
+const ambient = new THREE.HemisphereLight(0xa9bdcf, 0x57432d, 1.15);
 scene.add(ambient);
-const rim = new THREE.DirectionalLight(0xff9a5a, 0.5);
+const rim = new THREE.DirectionalLight(0xffb681, 1.45);
 rim.position.set(-8, 5, -6);
 scene.add(rim);
-const fireLight = new THREE.PointLight(0xff8a3d, 2.2, 14, 2);
+const skyFill = new THREE.DirectionalLight(0x8ca9cc, 0.65);
+skyFill.position.set(5, 7, 8);
+scene.add(skyFill);
+const fireLight = new THREE.PointLight(0xff8a3d, 3.0, 15, 2);
 fireLight.position.set(0, 0.35, 0);
 scene.add(fireLight);
-const FIRE_LIGHT_BASE_INTENSITY = 2.2;
+const FIRE_LIGHT_BASE_INTENSITY = 3.0;
 
 // ---- 바닥 ----
+function createForestFloorTexture() {
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = 512;
+  const ctx = cvs.getContext('2d');
+  const rand = mulberry32(37219);
+  ctx.fillStyle = '#594632';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 14500; i++) {
+    const shade = Math.floor(30 + rand() * 55);
+    const warm = Math.floor(21 + rand() * 34);
+    ctx.fillStyle = `rgba(${shade + 26},${warm + 20},${warm + 7},${0.1 + rand() * 0.22})`;
+    const size = 0.5 + rand() * 3.5;
+    ctx.fillRect(rand() * 512, rand() * 512, size * 2.2, size);
+  }
+  for (let i = 0; i < 175; i++) {
+    ctx.strokeStyle = `rgba(190,133,64,${0.1 + rand() * 0.15})`;
+    ctx.lineWidth = 1 + rand() * 2;
+    const x = rand() * 512, y = rand() * 512;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 4 + rand() * 12, y + rand() * 7); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(9, 9);
+  tex.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+  return tex;
+}
+const forestFloorMat = new THREE.MeshStandardMaterial({ map: createForestFloorTexture(), roughness: 1 });
 const ground = new THREE.Mesh(
   new THREE.CircleGeometry(30, 48),
-  new THREE.MeshStandardMaterial({ color: 0x2e2620, roughness: 1 })
+  forestFloorMat
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-// ---- 절차적 활엽수(단풍나무) - 저폴리 구체 여러 개를 겹쳐 뭉게구름형 캐노피로 ----
-const AUTUMN_PALETTE = [0x8c2f2f, 0xc9642b, 0xd9a441];
+// ---- 단풍나무: 가지, 불규칙한 수관, 잎 카드가 함께 만드는 다층 실루엣 ----
+const AUTUMN_PALETTE = [0x8e352c, 0xb95c29, 0xd28b38, 0xd6ae57];
+function createCanopyTexture() {
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = 256;
+  const ctx = cvs.getContext('2d');
+  const rand = mulberry32(59189);
+  ctx.fillStyle = '#c1c1c1';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 7600; i++) {
+    const value = Math.floor(72 + rand() * 160);
+    ctx.fillStyle = `rgba(${value},${value},${value},${0.22 + rand() * 0.43})`;
+    const r = 0.5 + rand() * 2.4;
+    ctx.beginPath();
+    ctx.ellipse(rand() * 256, rand() * 256, r * 1.9, r, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const map = new THREE.CanvasTexture(cvs);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(2, 2);
+  return map;
+}
+const canopyTexture = createCanopyTexture();
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -603,30 +699,74 @@ function createAutumnTree(seed = 1) {
   const rand = mulberry32(seed * 9973 + 17);
   const group = new THREE.Group();
 
-  const trunkHeight = 1.6 + rand() * 0.8;
-  const trunkGeo = new THREE.CylinderGeometry(0.09, 0.16, trunkHeight, 6);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3324, roughness: 1 });
+  const trunkHeight = 1.75 + rand() * 0.55;
+  const trunkGeo = new THREE.CylinderGeometry(0.085, 0.19, trunkHeight, 9);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x503b2d, roughness: 1 });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = trunkHeight / 2;
   group.add(trunk);
 
-  const canopyCenterY = trunkHeight + 0.6;
-  const lobeCount = 4 + Math.floor(rand() * 3); // 4~6개
-  for (let i = 0; i < lobeCount; i++) {
-    const lobeRadius = 0.55 + rand() * 0.45;
-    const lobeGeo = new THREE.IcosahedronGeometry(lobeRadius, 0);
-    const color = AUTUMN_PALETTE[Math.floor(rand() * AUTUMN_PALETTE.length)];
-    const lobeMat = new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true });
-    const lobe = new THREE.Mesh(lobeGeo, lobeMat);
-    const angle = rand() * Math.PI * 2;
-    const dist = i === 0 ? 0 : rand() * 0.55;
-    lobe.position.set(Math.cos(angle) * dist, canopyCenterY + (rand() - 0.3) * 0.6, Math.sin(angle) * dist);
-    lobe.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
-    lobe.scale.setScalar(0.85 + rand() * 0.3);
+  const canopyCenterY = trunkHeight + 0.65;
+  const clusters = [];
+  const branchMat = new THREE.MeshStandardMaterial({ color: 0x493226, roughness: 1 });
+  for (let i = 0; i < 7; i++) {
+    const angle = (i / 7) * Math.PI * 2 + rand() * 0.6;
+    const reach = 0.72 + rand() * 0.78;
+    const center = new THREE.Vector3(Math.cos(angle) * reach, canopyCenterY + (rand() - 0.5) * 0.85, Math.sin(angle) * reach);
+    clusters.push(center);
+    const start = new THREE.Vector3(0, trunkHeight * (0.65 + rand() * 0.23), 0);
+    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.075, start.distanceTo(center), 6), branchMat);
+    branch.position.copy(start).add(center).multiplyScalar(0.5);
+    branch.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), center.clone().sub(start).normalize());
+    group.add(branch);
+    const color = AUTUMN_PALETTE[(i + seed) % AUTUMN_PALETTE.length];
+    const lobe = new THREE.Mesh(
+      new THREE.SphereGeometry(0.78 + rand() * 0.25, 24, 16),
+      new THREE.MeshStandardMaterial({ color, map: canopyTexture, bumpMap: canopyTexture, bumpScale: 0.06, roughness: 1 })
+    );
+    lobe.position.copy(center);
+    lobe.scale.set(0.55 + rand() * 0.13, 0.39 + rand() * 0.12, 0.52 + rand() * 0.13);
     group.add(lobe);
   }
+  clusters.push(new THREE.Vector3(0, canopyCenterY + 0.65, 0));
+  const leafCanvas = document.createElement('canvas');
+  leafCanvas.width = leafCanvas.height = 64;
+  const lctx = leafCanvas.getContext('2d');
+  lctx.fillStyle = '#fff';
+  lctx.beginPath();
+  lctx.moveTo(32, 55);
+  lctx.bezierCurveTo(7, 40, 10, 15, 32, 7);
+  lctx.bezierCurveTo(54, 15, 57, 40, 32, 55);
+  lctx.fill();
+  const leafMap = new THREE.CanvasTexture(leafCanvas);
+  const leafGeo = new THREE.PlaneGeometry(0.105, 0.15);
+  const dummy = new THREE.Object3D();
+  for (let c = 0; c < AUTUMN_PALETTE.length; c++) {
+    const count = 850;
+    const leaves = new THREE.InstancedMesh(leafGeo, new THREE.MeshBasicMaterial({
+      color: new THREE.Color(AUTUMN_PALETTE[c]).multiplyScalar(0.68), map: leafMap, transparent: true, alphaTest: 0.45,
+      side: THREE.DoubleSide, depthWrite: true,
+    }), count);
+    for (let j = 0; j < count; j++) {
+      const cluster = clusters[Math.floor(rand() * clusters.length)];
+      const u = rand() * Math.PI * 2;
+      const v = Math.acos(2 * rand() - 1);
+      const radius = 0.65 + rand() * 0.55;
+      dummy.position.set(
+        cluster.x + Math.sin(v) * Math.cos(u) * radius,
+        cluster.y + Math.cos(v) * radius * 0.58,
+        cluster.z + Math.sin(v) * Math.sin(u) * radius
+      );
+      dummy.rotation.set(rand() * Math.PI, rand() * Math.PI * 2, rand() * Math.PI);
+      dummy.scale.setScalar(0.68 + rand() * 0.72);
+      dummy.updateMatrix();
+      leaves.setMatrixAt(j, dummy.matrix);
+    }
+    leaves.instanceMatrix.needsUpdate = true;
+    group.add(leaves);
+  }
 
-  const scale = 0.85 + rand() * 0.5;
+  const scale = 0.87 + rand() * 0.33;
   group.scale.setScalar(scale);
   group.rotation.y = rand() * Math.PI * 2;
   return group;
@@ -635,8 +775,9 @@ function createAutumnTree(seed = 1) {
 // ---- 캠프파이어 장작더미 ----
 function createCampfireLogs() {
   const group = new THREE.Group();
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x3d2a1c, roughness: 1 });
-  const logGeo = new THREE.CylinderGeometry(0.08, 0.09, 1.1, 6);
+  const logMat = new THREE.MeshStandardMaterial({ color: 0x473021, roughness: 1 });
+  const endMat = new THREE.MeshStandardMaterial({ color: 0x9e6a3e, roughness: 1 });
+  const logGeo = new THREE.CylinderGeometry(0.085, 0.095, 1.15, 10);
   const positions = [
     { rot: 0.4, x: -0.3, z: 0 },
     { rot: -0.5, x: 0.3, z: 0.05 },
@@ -644,11 +785,28 @@ function createCampfireLogs() {
     { rot: 1.5, x: 0.05, z: 0.3 },
   ];
   for (const p of positions) {
-    const log = new THREE.Mesh(logGeo, logMat);
+    const log = new THREE.Mesh(logGeo, [logMat, endMat, endMat]);
     log.position.set(p.x, 0.12, p.z);
     log.rotation.z = Math.PI / 2;
     log.rotation.y = p.rot;
     group.add(log);
+  }
+  const emberMat = new THREE.MeshBasicMaterial({ color: 0xff6928, transparent: true, opacity: 0.26, depthWrite: false });
+  const ember = new THREE.Mesh(new THREE.CircleGeometry(0.65, 40), emberMat);
+  ember.rotation.x = -Math.PI / 2;
+  ember.position.y = 0.025;
+  group.add(ember);
+  const stones = [0x514944, 0x74685b, 0x8b7762, 0x594c40];
+  for (let i = 0; i < 15; i++) {
+    const angle = i / 15 * Math.PI * 2;
+    const stone = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.12 + (i % 4) * 0.013, 0),
+      new THREE.MeshStandardMaterial({ color: stones[i % stones.length], roughness: 1, flatShading: true })
+    );
+    stone.position.set(Math.cos(angle) * 0.78, 0.09, Math.sin(angle) * 0.78);
+    stone.rotation.set(i * 0.4, i * 0.8, i * 0.3);
+    stone.scale.y = 0.65;
+    group.add(stone);
   }
   return group;
 }
@@ -687,7 +845,7 @@ const PARTICLE_FRAG = `
   varying vec3 vColor;
   void main() {
     vec4 tex = texture2D(map, gl_PointCoord);
-    gl_FragColor = vec4(vColor * tex.rgb * 3.0, tex.a * vAlpha);
+    gl_FragColor = vec4(vColor * tex.rgb * 1.15, tex.a * vAlpha);
   }
 `;
 function createParticleSystem(count, texture, blending) {
@@ -748,7 +906,7 @@ function createCampfireFire(origin, rand = Math.random) {
       sys.positions[i * 3] = s.baseX + sway;
       sys.positions[i * 3 + 1] = y;
       sys.positions[i * 3 + 2] = s.baseZ + sway * 0.6;
-      sys.sizes[i] = 0.38 * (1 - p * 0.7);
+      sys.sizes[i] = 0.29 * (1 - p * 0.7);
       sys.alphas[i] = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;
       const g = 0.95 - p * 0.65;
       const b = 0.75 - p * 0.7;
@@ -807,25 +965,65 @@ function createCampfireSmoke(origin, rand = Math.random) {
   return { points: sys.points, update };
 }
 
-// ---- 텐트 (근경 실루엣용, 단순 삼각기둥) ----
+// ---- 텐트: 캔버스 결, 입구 플랩, 봉제선과 고정 로프 ----
 function createTent() {
   const group = new THREE.Group();
-  // 캠프파이어 빛만으로는 어두운 전경에서 거의 안 보여서(격리 테스트로 확인) 약한
-  // emissive를 더해 최소 가시성을 보장한다.
+  const fabricCanvas = document.createElement('canvas');
+  fabricCanvas.width = fabricCanvas.height = 256;
+  const ctx = fabricCanvas.getContext('2d');
+  const rand = mulberry32(733);
+  ctx.fillStyle = '#a3aa83'; ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 256; i += 3) {
+    ctx.fillStyle = i % 2 ? 'rgba(42,51,36,.11)' : 'rgba(239,221,170,.08)';
+    ctx.fillRect(i, 0, 1, 256);
+  }
+  for (let i = 0; i < 2300; i++) {
+    ctx.fillStyle = `rgba(51,43,31,${rand() * 0.12})`;
+    ctx.fillRect(rand() * 256, rand() * 256, 1.3, 1.3);
+  }
+  const fabricMap = new THREE.CanvasTexture(fabricCanvas);
+  fabricMap.colorSpace = THREE.SRGBColorSpace;
+  fabricMap.wrapS = fabricMap.wrapT = THREE.RepeatWrapping;
+  fabricMap.repeat.set(2, 2);
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x5a8a6c, roughness: 0.85, side: THREE.DoubleSide,
-    emissive: 0x14201a, emissiveIntensity: 0.6,
+    map: fabricMap, color: 0xd9d6b7, roughness: 0.94, side: THREE.DoubleSide,
+    emissive: 0x29251b, emissiveIntensity: 0.23,
   });
   const shape = new THREE.Shape();
-  shape.moveTo(-0.9, 0);
-  shape.lineTo(0, 1.1);
-  shape.lineTo(0.9, 0);
-  shape.lineTo(-0.9, 0);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.6, bevelEnabled: false });
+  shape.moveTo(-1.05, 0);
+  shape.lineTo(0, 1.48);
+  shape.lineTo(1.05, 0);
+  shape.lineTo(-1.05, 0);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 2.05, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.025, bevelSegments: 1 });
   geo.center();
   const tent = new THREE.Mesh(geo, bodyMat);
-  tent.rotation.y = Math.PI / 2;
+  tent.position.y = 0.75;
   group.add(tent);
+  const openingShape = new THREE.Shape();
+  openingShape.moveTo(-0.43, 0.07); openingShape.lineTo(0, 1.02); openingShape.lineTo(0.43, 0.07);
+  const opening = new THREE.Mesh(new THREE.ShapeGeometry(openingShape), new THREE.MeshBasicMaterial({ color: 0x211c1a, side: THREE.DoubleSide }));
+  opening.position.z = 1.07;
+  group.add(opening);
+  const flapMat = new THREE.MeshStandardMaterial({ color: 0x777e63, roughness: 1, side: THREE.DoubleSide });
+  for (const side of [-1, 1]) {
+    const flapShape = new THREE.Shape();
+    flapShape.moveTo(0, 1.07); flapShape.lineTo(side * 0.52, 0.07); flapShape.lineTo(side * 0.73, 0.06);
+    const flap = new THREE.Mesh(new THREE.ShapeGeometry(flapShape), flapMat);
+    flap.position.z = 1.09;
+    group.add(flap);
+  }
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xc2ae85, transparent: true, opacity: 0.73 });
+  for (const front of [-1, 1]) {
+    const z = front * 1.04;
+    const ridge = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 1.51, z), new THREE.Vector3(front < 0 ? -1.8 : 1.8, 0.04, z + front * 0.8)
+    ]), lineMat);
+    group.add(ridge);
+  }
+  const groundsheet = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.4), new THREE.MeshStandardMaterial({ color: 0x393c2d, roughness: 1, side: THREE.DoubleSide }));
+  groundsheet.rotation.x = -Math.PI / 2;
+  groundsheet.position.y = 0.025;
+  group.add(groundsheet);
   return group;
 }
 
@@ -835,18 +1033,64 @@ const campfireFire = createCampfireFire(new THREE.Vector3(0, 0, 0));
 const campfireSmoke = createCampfireSmoke(new THREE.Vector3(0, 0, 0));
 scene.add(campfireFire.points);
 scene.add(campfireSmoke.points);
+const flameCoreMaterial = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false,
+  side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  vertexShader: 'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader: `
+    varying vec2 vUv; uniform float uTime;
+    void main(){
+      float y=vUv.y;
+      float sway=sin(uTime*3.8+y*7.0)*.055*y;
+      float width=mix(.38,.025,y);
+      float x=abs(vUv.x-.5+sway);
+      float body=1.0-smoothstep(width*.55,width,x);
+      float alpha=body*smoothstep(0.0,.11,y)*(1.0-smoothstep(.72,1.0,y));
+      vec3 color=mix(vec3(1.0,.22,.035),vec3(1.0,.79,.32),smoothstep(.06,.65,y));
+      gl_FragColor=vec4(color,alpha*.42);
+    }`,
+});
+const flameCore = new THREE.Mesh(new THREE.PlaneGeometry(.7,1.0),flameCoreMaterial);
+flameCore.position.set(0,.47,.03);
+flameCore.rotation.y = Math.atan2(CAMERA_POS.x, CAMERA_POS.z);
+scene.add(flameCore);
 
 const tent = createTent();
-tent.position.set(-2.3, 0, -0.9);
-tent.rotation.y = 0.4;
+tent.position.set(-2.9, 0, -0.8);
+tent.rotation.y = 0.15;
 scene.add(tent);
+function createLantern() {
+  const group = new THREE.Group();
+  const metal = new THREE.MeshStandardMaterial({ color: 0x383732, metalness: .62, roughness: .46 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xffbb6b, emissive: 0xff9a3e, emissiveIntensity: .9, roughness: .2, transparent: true, opacity: .85 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(.15,.17,.065,16),metal);base.position.y=.065;group.add(base);
+  const globe = new THREE.Mesh(new THREE.CylinderGeometry(.12,.13,.33,16),glass);globe.position.y=.26;group.add(globe);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(.18,.13,16),metal);cap.position.y=.50;group.add(cap);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(.11,.015,6,18,Math.PI),metal);handle.position.y=.59;group.add(handle);
+  const lampLight = new THREE.PointLight(0xffa45c,.65,3,2);lampLight.position.y=.30;group.add(lampLight);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTexture, color: 0xffac62, transparent: true, opacity: .13, depthWrite: false, blending: THREE.AdditiveBlending }));
+  halo.position.y=.30;halo.scale.set(1.1,1.1,1);group.add(halo);
+  group.position.set(-2.0,0,1.1);
+  scene.add(group);
+}
+createLantern();
+const warmGroundGlow = new THREE.Mesh(
+  new THREE.CircleGeometry(2.7, 56),
+  new THREE.MeshBasicMaterial({
+    map: createRadialTexture([[0,'rgba(255,139,56,.35)'],[.5,'rgba(226,100,36,.11)'],[1,'rgba(226,100,36,0)']]),
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .35,
+  })
+);
+warmGroundGlow.rotation.x = -Math.PI / 2;
+warmGroundGlow.position.set(0,.063,0);
+scene.add(warmGroundGlow);
 
 // 근경 활엽수 군락 (호수 앞쪽, 반사 없음)
 const autumnSpots = [
-  { x: 3.5, z: -2, seed: 1 },
-  { x: 4.6, z: -0.5, seed: 2 },
-  { x: -4.5, z: -1.8, seed: 4 },
-  { x: -2, z: -2.6, seed: 5 },
+  { x: 4.1, z: -2.4, seed: 1 },
+  { x: 5.6, z: -3.4, seed: 2 },
+  { x: -5.0, z: -2.5, seed: 4 },
+  { x: -4.2, z: -4.2, seed: 5 },
 ];
 for (const spot of autumnSpots) {
   const tree = createAutumnTree(spot.seed);
@@ -876,12 +1120,90 @@ function dimAsReflection(obj) {
 
 // ---- 호수 ----
 const LAKE_NEAR_Z = -5.5, LAKE_FAR_Z = -11.5;
-const waterGeo = new THREE.PlaneGeometry(22, LAKE_NEAR_Z - LAKE_FAR_Z);
-const waterMat = new THREE.MeshBasicMaterial({ color: 0x1b3a4a, transparent: true, opacity: 0.62 });
+const waterGeo = new THREE.PlaneGeometry(22, LAKE_NEAR_Z - LAKE_FAR_Z, 48, 12);
+const waterMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  vertexShader: 'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader: `
+    varying vec2 vUv; uniform float uTime;
+    void main(){
+      vec2 uv=vUv;
+      float wave=sin(uv.y*32.0+sin(uv.x*9.0+uTime*.27)*1.2+uTime*.45);
+      float fine=sin(uv.y*71.0-uv.x*7.0-uTime*.55);
+      float band=smoothstep(.23,.86,uv.y);
+      vec3 deep=vec3(.024,.075,.091), horizon=vec3(.13,.105,.108);
+      vec3 col=mix(deep,horizon,band*.62);
+      col+=vec3(.045,.038,.029)*pow(max(wave*.5+.5,0.0),10.0)*(.25+.5*band);
+      col+=vec3(.028,.037,.04)*fine*.1;
+      float glint=exp(-pow((uv.x-.48)*7.0,2.0))*(.3+.7*band);
+      col+=vec3(.10,.055,.028)*glint*pow(max(wave*.5+.5,0.0),7.0);
+      gl_FragColor=vec4(col,.68);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+});
 const water = new THREE.Mesh(waterGeo, waterMat);
 water.rotation.x = -Math.PI / 2;
 water.position.set(0, 0.02, (LAKE_NEAR_Z + LAKE_FAR_Z) / 2);
 scene.add(water);
+
+// 물가의 불규칙한 지형과 돌이 직선으로 잘린 호수 가장자리를 가려 준다.
+function createBank(near) {
+  const sections = 44, vertices = [], uvs = [], indices = [];
+  for (let i = 0; i <= sections; i++) {
+    const x = -11 + i * 22 / sections;
+    const edge = (near ? LAKE_NEAR_Z : LAKE_FAR_Z) + Math.sin(x * .77) * .31 + Math.sin(x * 2.15) * .12;
+    const inland = edge + (near ? 1.22 : -1.22);
+    vertices.push(x, .045, edge, x, .05, inland);
+    uvs.push(i / sections * 5, 0, i / sections * 5, 1);
+    if (i < sections) { const j = i * 2; indices.push(j, j+1, j+2, j+1, j+3, j+2); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices); geo.computeVertexNormals();
+  const bank = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x58452f, map: forestFloorMat.map, roughness: 1, side: THREE.DoubleSide }));
+  scene.add(bank);
+  const rand = mulberry32(near ? 2001 : 2002);
+  const rockColors = [0x655b50, 0x8b806e, 0x514940];
+  for (let i = 0; i < 80; i++) {
+    const x = -10.5 + rand() * 21;
+    const edge = (near ? LAKE_NEAR_Z : LAKE_FAR_Z) + Math.sin(x * .77) * .31 + Math.sin(x * 2.15) * .12;
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(.045 + rand() * .13, 0),
+      new THREE.MeshStandardMaterial({ color: rockColors[i % rockColors.length], roughness: 1, flatShading: true })
+    );
+    rock.position.set(x, .065, edge + (near ? 1 : -1) * rand() * .52);
+    rock.scale.set(.8 + rand() * 1.5, .35 + rand() * .45, .7 + rand() * 1.3);
+    scene.add(rock);
+  }
+}
+createBank(true);
+createBank(false);
+
+// 근경의 마른 풀은 개별 메시 대신 인스턴스로 그려 OBS GPU 부하를 낮춘다.
+function createGrassPatches() {
+  const rand = mulberry32(29119);
+  const bladeGeo = new THREE.BufferGeometry();
+  bladeGeo.setAttribute('position', new THREE.Float32BufferAttribute([-.015,0,0,.015,0,0,0,.15,0],3));
+  bladeGeo.computeVertexNormals();
+  const palette = [0x655c3d, 0x81704a, 0x58583b];
+  const dummy = new THREE.Object3D();
+  for (let c = 0; c < palette.length; c++) {
+    const grass = new THREE.InstancedMesh(bladeGeo,new THREE.MeshStandardMaterial({color:palette[c],roughness:1,side:THREE.DoubleSide}),450);
+    for (let i = 0; i < 450; i++) {
+      let x = (rand() - .5) * 21, z = -4.8 + rand() * 10.7;
+      if (Math.hypot(x,z) < 1.35) z += 1.8;
+      dummy.position.set(x,.035,z);
+      dummy.rotation.set(0,rand()*Math.PI*2,(rand()-.5)*.35);
+      dummy.scale.setScalar(.46+rand()*1.05);
+      dummy.updateMatrix();grass.setMatrixAt(i,dummy.matrix);
+    }
+    grass.instanceMatrix.needsUpdate=true;
+    scene.add(grass);
+  }
+}
+createGrassPatches();
 
 // ---- 호수 건너편 나무(가짜반사 대상): 원본은 물 건너에, 복제본은 y를 뒤집어 물 밑에 ----
 const farBankZ = LAKE_FAR_Z - 0.6;
@@ -913,13 +1235,39 @@ for (const spot of farPineSpots) {
   });
 }
 
+// 더 먼 숲은 안개 속 실루엣만 남겨 평평한 지평선을 끊고 공간 깊이를 만든다.
+const distantPineMat = new THREE.MeshStandardMaterial({ color: 0x28353a, roughness: 1 });
+const distantTrunkMat = new THREE.MeshStandardMaterial({ color: 0x30332e, roughness: 1 });
+const distantRand = mulberry32(74941);
+for (let i = 0; i < 36; i++) {
+  const group = new THREE.Group();
+  const height = 2.5 + distantRand() * 2.9;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.045,.09,height*.67,5),distantTrunkMat);
+  trunk.position.y = height * .36;
+  group.add(trunk);
+  for (let layer = 0; layer < 3; layer++) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry((.64-layer*.12)*(height/4),height*.44,8),distantPineMat);
+    cone.position.y = height * (.39 + layer * .18);
+    group.add(cone);
+  }
+  group.position.set(-29 + i * 1.66 + (distantRand()-.5)*1.1,0,-20-distantRand()*8);
+  scene.add(group);
+}
+
 // ---- 낙엽 파티클 (InstancedMesh, 실제 텀블링 회전) ----
 // 참고: InstancedMesh + vertexColors/instanceColor 조합이 검게 렌더되는 문제를
 // 격리 테스트로 확인함(순수 MeshBasicMaterial.color는 정상). 그래서 색상별로
 // 별도 InstancedMesh 3개를 두는 방식으로 우회.
 const LEAF_COLORS = [0x8c2f2f, 0xc9642b, 0xd9a441];
+function createLeafGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.12);
+  shape.bezierCurveTo(-0.14, -0.045, -0.11, 0.075, 0, 0.12);
+  shape.bezierCurveTo(0.11, 0.075, 0.14, -0.045, 0, -0.12);
+  return new THREE.ShapeGeometry(shape, 5);
+}
 function createLeafColorGroup(color, count) {
-  const geo = new THREE.PlaneGeometry(0.14, 0.18);
+  const geo = createLeafGeometry();
   const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.frustumCulled = false;
@@ -949,6 +1297,7 @@ function createLeafColorGroup(color, count) {
       const sway = Math.sin(t * s.swaySpeed + s.swayPhase) * s.swayAmp;
       dummy.position.set(s.x + sway, s.y, s.z);
       dummy.quaternion.setFromAxisAngle(s.rotAxis, s.rotAngle);
+      dummy.scale.setScalar(0.53);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     }
@@ -967,6 +1316,27 @@ function createFallingLeaves(totalCount = 48) {
 const fallingLeaves = createFallingLeaves(48);
 for (const m of fallingLeaves.meshes) scene.add(m);
 
+// 땅에 쌓인 잎을 작은 인스턴스로 배치해 빈 전경에 재질과 계절감을 준다.
+function createLeafLitter() {
+  const rand = mulberry32(48291);
+  const geo = createLeafGeometry();
+  const dummy = new THREE.Object3D();
+  for (const color of [0x66482d, 0x815737, 0x746337]) {
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }), 210);
+    for (let i = 0; i < 210; i++) {
+      const x = (rand() - .5) * 16, z = -4.4 + rand() * 8.0;
+      dummy.position.set(x, .055, z);
+      dummy.rotation.set(-Math.PI / 2, 0, rand() * Math.PI * 2);
+      dummy.scale.setScalar(.24 + rand() * .30);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    scene.add(mesh);
+  }
+}
+createLeafLitter();
+
 // ------------------------------------------------------------
 // 후처리 - RenderPass + 블룸 + 틸트시프트 + 비네트 + 필름그레인.
 // (VignetteShader/FilmGrainShader는 위 공용 섹션에서 이미 정의됨)
@@ -976,7 +1346,7 @@ composer.addPass(new RenderPass(scene, camera));
 // 하늘 돔이 화면 넓은 면적을 차지해서 threshold를 낮게 두면 하늘 전체가 블룸에 걸려
 // 뿌옇게 뜬다(실제로 0.35에서 이 문제 발생 확인) - 캠프파이어처럼 정말 밝은 지점만
 // 블룸이 걸리도록 threshold를 0.62까지 올렸다.
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(1280, 720), 1.0, 0.5, 0.62);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1280, 720), 0.8, 0.42, 0.62);
 composer.addPass(bloomPass);
 
 // 틸트시프트 블러 - ski-resort.html/fireworks.html과 동일한 기법(vUv.y 기반 가짜 심도)
@@ -1028,7 +1398,7 @@ const vBlur = new ShaderPass({
   vertexShader: TiltShiftShader.vertexShader,
   fragmentShader: TiltShiftShader.fragmentShaderV
 });
-const TILT_SHIFT_BLURINESS = 4.8;
+const TILT_SHIFT_BLURINESS = 1.35;
 // 캠프파이어+호수 라인이 화면 중하단에 오는 구도라 포커스 띠를 화면 중앙보다 살짝 아래로.
 const TILT_SHIFT_FOCUS_R = 0.42;
 hBlur.uniforms.h.value = TILT_SHIFT_BLURINESS / 1280;
@@ -1596,7 +1966,9 @@ function animate() {
   const t = clock.elapsedTime;
   campfireFire.update(dt, t);
   campfireSmoke.update(dt);
+  flameCoreMaterial.uniforms.uTime.value = t;
   fallingLeaves.update(dt, t);
+  waterMat.uniforms.uTime.value = t;
   // 캠프파이어 조명 flicker: 사인파(느린 숨쉬기) + 랜덤 노이즈(잔불 튀는 느낌) 조합
   const flicker = Math.sin(t * 6.0) * 0.12 + Math.sin(t * 17.3) * 0.06 + (Math.random() - 0.5) * 0.1;
   fireLight.intensity = FIRE_LIGHT_BASE_INTENSITY + flicker;
