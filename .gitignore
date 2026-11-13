@@ -1,3 +1,4 @@
 # 맥 전용 시스템 파일 무시
 .DS_Store
 functions/node_modules/
+functions/
