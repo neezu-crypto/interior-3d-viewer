@@ -67,7 +67,7 @@ async function requireAdmin(request) {
 
 // interior-3d-viewer 프리셋 갤러리 전용 함수. presetgallery 코드베이스로 분리되어 있어서
 // 이 프로젝트의 다른 서비스(default 코드베이스) 함수들과는 완전히 독립적으로 배포/관리됨.
-exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
+exports.publishPreset = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   const uid = await requireAdmin(request);
   const data = request.data || {};
   const rawName = data.name;
@@ -113,7 +113,7 @@ exports.publishPreset = onCall({ region: 'us-central1' }, async (request) => {
 
 // 이미 게시된 프리셋의 이름/설정을 그대로 덮어쓴다 (관리자 전용) - id/게시자/게시일은 유지하고
 // config(및 선택적으로 name)만 교체, updatedAt만 새로 기록한다.
-exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
+exports.updatePreset = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   await requireAdmin(request);
   const data = request.data || {};
   const id = data.id;
@@ -157,7 +157,7 @@ exports.updatePreset = onCall({ region: 'us-central1' }, async (request) => {
 });
 
 // 게시가 관리자 전용으로 바뀌었으므로 삭제도 소유자(ownerUid) 대신 관리자 여부로만 판별한다.
-exports.deletePreset = onCall({ region: 'us-central1' }, async (request) => {
+exports.deletePreset = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   await requireAdmin(request);
   const id = request.data && request.data.id;
   if (typeof id !== 'string' || !id) {
@@ -202,7 +202,7 @@ exports.migratePresetPublicIdentityData = onCall({ region: 'us-central1' }, asyn
 // 공개 읽기라 ownerUid가 누구에게나 보이므로, 그걸 그대로 신뢰하면 제3자가 "내가 이 익명 uid였다"고
 // 거짓 주장해서 남의 프리셋 소유권을 가로챌 수 있다. 그래서 실제로 그 익명 uid로 인증된 시점(=
 // requireAuth로 검증 가능한 유일한 시점)에 미리 발급한 1회용 티켓으로만 대상 uid를 확인한다.
-exports.requestPresetMergeTicket = onCall({ region: 'us-central1' }, async (request) => {
+exports.requestPresetMergeTicket = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   const uid = requireAuth(request);
   const db = getDatabase();
   const ticket = crypto.randomBytes(24).toString('hex');
@@ -231,7 +231,7 @@ async function logMergeFailure(db, info) {
   }
 }
 
-exports.claimPresetMerge = onCall({ region: 'us-central1' }, async (request) => {
+exports.claimPresetMerge = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   const newUid = requireAuth(request);
   const ticket = request.data && request.data.ticket;
   if (typeof ticket !== 'string' || !ticket) {
@@ -279,7 +279,7 @@ exports.claimPresetMerge = onCall({ region: 'us-central1' }, async (request) => 
 // 티켓 발급(requestPresetMergeTicket) 자체가 실패해 claimPresetMerge를 호출할 수 없었던 경우를
 // 위한 최후의 기록용 엔드포인트 - 클라이언트가 보낸 oldUidHint는 티켓으로 검증된 값이 아니므로
 // (verified:false) 관리자가 실제로 그 uid가 맞는지 확인 후 수동으로 이전해야 한다.
-exports.reportPresetMergeFailure = onCall({ region: 'us-central1' }, async (request) => {
+exports.reportPresetMergeFailure = onCall({ region: 'us-central1', enforceAppCheck: true }, async (request) => {
   const newUid = requireAuth(request);
   const data = request.data || {};
   const oldUidHint = typeof data.oldUidHint === 'string' ? data.oldUidHint.slice(0, 128) : null;
