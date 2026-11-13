@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스트리머 배경시장 · 개인정보 처리방침</title>
+<style>
+  body { margin: 0; background: #f6f4fb; color: #2d2a36; font: 15px/1.7 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 28px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { border: 1px solid #ddd6ea; padding: 8px; text-align: left; vertical-align: top; }
+  th { background: #ece7f6; }
+  .meta { color: #6b6578; font-size: .9rem; }
+  a { color: #5b3fc4; }
+  footer { margin-top: 36px; color: #6b6578; font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>개인정보 처리방침</h1>
+  <p class="meta">스트리머 배경시장(이하 "서비스") · 시행일: 2026-11-14</p>
+
+  <h2>1. 처리하는 정보와 목적</h2>
+  <table>
+    <tr><th>항목</th><th>수집 시점</th><th>이용 목적</th></tr>
+    <tr><td>Firebase UID(익명 또는 Google 로그인 계정), 로그인 계정 여부</td><td>서비스 접속 시 익명 계정 발급, 이용자가 Google 로그인을 선택한 경우</td><td>프리셋 작성자 구분, 본인 프리셋만 수정·삭제하도록 권한 확인. Google 이메일·이름·프로필 사진은 서비스 데이터베이스에 저장하지 않습니다.</td></tr>
+    <tr><td>프리셋 이름·배경 설정값, 작성 시각</td><td>이용자가 프리셋을 공개 저장할 때</td><td>프리셋 공유·적용. 공개 목록에는 이름·설정값·작성 시각만 노출하며 작성자 UID는 노출하지 않습니다.</td></tr>
+    <tr><td>프리셋 적용 횟수·OBS 링크 생성 횟수</td><td>프리셋을 적용하거나 OBS 링크를 만들 때</td><td>인기 프리셋 집계. 누가 적용했는지는 저장하지 않고 횟수만 늘립니다.</td></tr>
+    <tr><td>계정 병합 티켓(이전 UID·생성 시각), 병합 실패 기록(이전·새 UID, 실패 사유, 시각)</td><td>익명 계정에서 Google 로그인으로 전환할 때</td><td>기존 프리셋을 새 계정으로 옮기기. 티켓은 한 번 사용하면 바로 삭제하며, 실패 기록은 관리자가 수동 이전을 처리한 뒤 삭제합니다.</td></tr>
+  </table>
+
+  <h2>2. 보유와 삭제</h2>
+  <p>프리셋은 작성자가 삭제하면 원본과 공개 목록에서 함께 지웁니다. 그 밖의 정기 보유 기간은 아직 확정되어 있지 않습니다. 확정 전에는 보유 기간이나 삭제 시점을 약속하지 않으며, 기준이 정해지면 이 문서를 갱신해 안내합니다. Firebase·Google Cloud·GitHub 등 제공자가 자체적으로 생성하는 보안·접속 로그는 각 제공자의 보관 정책을 따릅니다.</p>
+
+  <h2>3. 처리위탁과 국외 이전</h2>
+  <ul>
+    <li><strong>Google LLC (Firebase / Google Cloud)</strong>: 로그인 인증, Realtime Database, 서버 함수 제공.</li>
+    <li><strong>Google reCAPTCHA Enterprise(Firebase App Check)</strong>: 자동화된 접근과 서버 기능 남용 방지. 페이지를 열면 Google이 기기·브라우저 정보와 이용 신호를 받아 정상 앱 요청인지 판별하며, 서비스는 확인 결과(토큰)만 검사하고 저장하지 않습니다. Google이 처리하는 정보에는 Google 개인정보처리방침이 적용됩니다.</li>
+    <li><strong>GitHub Pages</strong>: 서비스 화면(정적 파일) 제공.</li>
+  </ul>
+  <p>국외 이전: Firebase Realtime Database와 서버 함수는 미국(us-central1)에 있습니다. 위 정보가 HTTPS를 통해 Google LLC의 미국 인프라로 전송·저장될 수 있으며, 인증·데이터베이스·서버 기능 제공에 이용됩니다. 광고 목적으로 이용자 정보를 판매하지 않습니다.</p>
+
+  <h2>4. 이용자의 권리와 문의</h2>
+  <p>이용자는 본인 프리셋을 화면에서 직접 삭제할 수 있고, 그 밖의 열람·정정·삭제·처리정지를 요청할 수 있습니다. 개인정보 보호업무 담당자: 오목지면시그. 요청은 <a href="mailto:skftodwocks2@gmail.com">skftodwocks2@gmail.com</a>으로 보내주세요. 본인 확인 후 처리하며, 법령상 보존 의무가 있는 정보는 해당 기간 보관합니다.</p>
+
+  <h2>5. 개정</h2>
+  <p>이 방침은 기능과 데이터 처리 방식이 바뀌면 갱신하며, 중요한 변경은 이 페이지에 시행일과 함께 안내합니다.</p>
+
+  <footer>스트리머 배경시장 · <a href="./">배경시장으로 돌아가기</a><br>© 2026 STREAMER SERIES · All rights reserved · 무단 복제·재배포 금지</footer>
+</main>
+</body>
+</html>
