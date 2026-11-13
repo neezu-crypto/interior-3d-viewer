@@ -364,6 +364,7 @@
   // Firebase RTDB - 공개 프리셋 갤러리용. 모듈 스크립트라 아래 일반 스크립트보다 실행이 늦어질 수 있어서
   // window.__firebaseGallery 준비되면 'firebase-gallery-ready' 이벤트로 알림
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app-check.js";
   import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-functions.js";
   import {
@@ -382,6 +383,10 @@
   };
 
   const app = initializeApp(firebaseConfig);
+
+  // 프리셋 저장·수정·삭제·계정 병합 callable은 서버가 App Check를 강제한다(2026-11-14).
+
+  try { initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider('6Ld0AfAtAAAAABcCio4_5AoiCdrjfM7_4riWiYXR'), isTokenAutoRefreshEnabled: true }); } catch (error) { console.warn('App Check 초기화 실패', error); }
   const db = getDatabase(app);
   const galleryRef = ref(db, 'presetGalleryPublic');
 
