@@ -418,6 +418,7 @@ const fbApp = initializeApp(firebaseConfig);
 try { initializeAppCheck(fbApp, { provider: new ReCaptchaEnterpriseProvider('6Ld0AfAtAAAAABcCio4_5AoiCdrjfM7_4riWiYXR'), isTokenAutoRefreshEnabled: true }); } catch (error) { console.warn('App Check 초기화 실패', error); }
 const db = getDatabase(fbApp);
 const galleryRef = ref(db, 'presetGalleryPublic');
+const skipDbInObs = !!window.obsstudio || new URLSearchParams(location.search).get('obs') === '1'; // OBS 화면은 목록·상단바를 숨기므로 기본 DB를 읽지 않는다(RTDB App Check 강제 대비)
 
 // 08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
 // 하드코딩된 링크를 대체한다. 노드가 비어있거나 조회 실패 시 기존 하드코딩된
@@ -425,6 +426,7 @@ const galleryRef = ref(db, 'presetGalleryPublic');
 // 링크는 devbarLinks 대상이 아니라 항상 하드코딩 그대로 유지된다.
 (async function () {
   const SELF_GAME_ID = 'backgroundMarket';
+  if (skipDbInObs) return;
   try {
     const snap = await get(ref(db, 'devbarLinks'));
     const data = snap.val();
@@ -1079,7 +1081,7 @@ function renderGallery(entries) {
   });
 }
 let lastGalleryEntries = null;
-onValue(galleryRef, function (snapshot) {
+if (!skipDbInObs) onValue(galleryRef, function (snapshot) {
   renderGallery(snapshot.val() || {});
 }, function (err) {
   console.error('presetGallery 읽기 실패:', err);
