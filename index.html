@@ -20,7 +20,7 @@
     flex-direction: column;
   }
 
-  /* 고정 16:9 비율로 중앙 정렬하고, 남는 영역은 레터박스(어두운 여백) 처리.
+  /*  고정 16:9 비율로 중앙 정렬하고, 남는 영역은 레터박스(어두운 여백) 처리.
      devbar가 자기 높이만큼 차지하고 #app이 나머지 공간을 flex로 채우므로,
      JS(fitCanvas)에서도 window 전체가 아니라 #app의 실제 크기를 기준으로 계산한다. */
   #app {
@@ -39,7 +39,7 @@
     touch-action: none;
   }
 
-  /* 은은한 비네트 */
+  /*  은은한 비네트 */
   #vignette {
     position: absolute;
     pointer-events: none;
@@ -66,7 +66,7 @@
   }
   #loading.hidden { opacity: 0; pointer-events: none; }
 
-  /* 다른 배경 페이지로 이동하는 프리셋("적용") 클릭 시 - 집계 요청이 서버에
+  /*  다른 배경 페이지로 이동하는 프리셋("적용") 클릭 시 - 집계 요청이 서버에
      확실히 전송된 걸 확인한 뒤에만 페이지를 넘기기 위해, 그 사이 짧은 대기를
      사용자에게 보여준다(그냥 바로 넘기면 요청이 네트워크 왕복 전에 취소됨). */
   .scene-apply-overlay {
@@ -95,7 +95,7 @@
     max-height: 92vh;
     overflow-y: auto;
     padding: 14px;
-    border-radius: 14px;
+    border-radius: 14.26px;
     background: rgba(20, 18, 16, 0.55);
     backdrop-filter: blur(6px);
     color: rgba(255,255,255,0.88);
@@ -300,7 +300,7 @@
   .dev-game-link:hover { background: rgba(255,255,255,0.18); }
 </style>
 </head>
-<body>
+<body data-ss-series="interior-2026" data-ssroom="skftod2-int">
 <div class="devbar" id="devbar">
   <div class="devbar-inner">
     <div class="devbar-viewport" id="devbarViewport">
@@ -362,7 +362,7 @@
 
 <script type="module">
   // Firebase RTDB - 공개 프리셋 갤러리용. 모듈 스크립트라 아래 일반 스크립트보다 실행이 늦어질 수 있어서
-  // window.__firebaseGallery 준비되면 'firebase-gallery-ready' 이벤트로 알림
+  //  window.__firebaseGallery 준비되면 'firebase-gallery-ready' 이벤트로 알림
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
   import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app-check.js";
   import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
@@ -384,15 +384,15 @@
 
   const app = initializeApp(firebaseConfig);
 
-  // 프리셋 저장·수정·삭제·계정 병합 callable은 서버가 App Check를 강제한다(2026-11-14).
+  //  프리셋 저장·수정·삭제·계정 병합 callable은 서버가 App Check를 강제한다(2026-11-14).
 
   try { initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider('6Ld0AfAtAAAAABcCio4_5AoiCdrjfM7_4riWiYXR'), isTokenAutoRefreshEnabled: true }); } catch (error) { console.warn('App Check 초기화 실패', error); }
   const db = getDatabase(app);
   const galleryRef = ref(db, 'presetGalleryPublic');
 
-  // 08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
+  //  08번 — devbar 게임 링크를 RTDB(devbarLinks, admin-center에서 관리)에서 가져와
   // 하드코딩된 링크를 대체한다. 노드가 비어있거나 조회 실패 시 기존 하드코딩된
-  // data-game-id 링크를 그대로 둔다(devbar가 통째로 사라지는 사고 방지) — "방송국"
+  //  data-game-id 링크를 그대로 둔다(devbar가 통째로 사라지는 사고 방지) — "방송국"
   // 링크는 devbarLinks 대상이 아니라 항상 하드코딩 그대로 유지된다.
   (async function () {
     const SELF_GAME_ID = 'backgroundMarket';
@@ -431,13 +431,13 @@
   const claimMergeFn = httpsCallable(functions, 'claimPresetMerge');
   const reportMergeFailureFn = httpsCallable(functions, 'reportPresetMergeFailure');
   // 통합 관리 센터에서 배경시장 갤러리 통계(적용/OBS 링크 횟수)를 보여주기 위한
-  // 집계용 - 클릭한 사람에게 결과를 보여줄 필요가 없어 실패해도 조용히 무시한다
+  //  집계용 - 클릭한 사람에게 결과를 보여줄 필요가 없어 실패해도 조용히 무시한다
   // (통계 갱신 실패로 실제 적용·복사 동작 자체를 막으면 안 됨).
   const incrementPresetApplyCountFn = httpsCallable(functions, 'incrementPresetApplyCount');
   const incrementPresetObsLinkCountFn = httpsCallable(functions, 'incrementPresetObsLinkCount');
   // 09번/13번 — UI에서 게시/수정/삭제 버튼을 보여줄지 판단하는 용도일 뿐(실제 권한은
   // 항상 서버가 검증). adminCenter/adminUids는 .read:false라 클라이언트가 직접 못
-  // 읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
+  //  읽으므로 whoAmI로 확인한 결과를 캐싱해서 쓴다.
   const whoAmIFn = httpsCallable(functions, 'galleryWhoAmI');
   let isAdminCached = false;
   const auth = getAuth(app);
@@ -470,7 +470,7 @@
   window.dispatchEvent(new Event('firebase-gallery-ready'));
 
   // 프리셋 소유권(uid) 확인용 로그인. 로그인 안 해도 익명 계정으로 자동 전환돼 uid는 항상
-  // 존재하며(기기에 영속), 이 uid로 게시한 프리셋의 소유를 서버(Cloud Functions)가 검증한다.
+  //  존재하며(기기에 영속), 이 uid로 게시한 프리셋의 소유를 서버(Cloud Functions)가 검증한다.
   // Google 로그인은 실계정 전환일 뿐 -- 클라이언트가 보낸 uid는 서버가 절대 신뢰하지 않고
   // 항상 request.auth.uid에서만 가져온다 (functions/index.js의 requireAuth 참고).
   let currentUser = null;
@@ -490,16 +490,16 @@
       }
 
       // 링크 실패로 기존 계정으로 전환되면 uid가 바뀌므로, 그 전에 uid를 기억해뒀다가
-      // 실패 시 관리자 확인용 로그에 "어느 익명 uid였는지" 단서로 남긴다.
+      //  실패 시 관리자 확인용 로그에 "어느 익명 uid였는지" 단서로 남긴다.
       const oldUidBeforeSwitch = currentUser ? currentUser.uid : null;
 
       // ticket: 링크가 실패해 기존 계정으로 전환하게 될 경우, 그 기존 계정으로
-      // 익명 uid가 게시한 프리셋 소유권을 옮기는 데 쓸 1회용 티켓 (null이면 이전 생략)
+      //  익명 uid가 게시한 프리셋 소유권을 옮기는 데 쓸 1회용 티켓 (null이면 이전 생략)
       function linkOrSwitch(ticket) {
         return linkWithPopup(currentUser, provider).catch(function (err) {
           if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
           // 이미 다른 세션에서 같은 Google 계정으로 가입한 적이 있으면 연결이 거부됨
-          // (그 Google 계정은 이미 다른 uid를 갖고 있으므로) - 이 경우 그 기존 계정으로 전환한다.
+          //  (그 Google 계정은 이미 다른 uid를 갖고 있으므로) - 이 경우 그 기존 계정으로 전환한다.
           if (err && err.code === 'auth/credential-already-in-use') {
             const cred = GoogleAuthProvider.credentialFromError(err);
             if (cred) {
@@ -507,12 +507,12 @@
                 if (!ticket) {
                   // 티켓 발급 자체가 실패해서 자동 이전을 시도할 수조차 없었던 경우 -
                   // 관리자가 나중에 수동으로 확인할 수 있도록 로그만이라도 남긴다
-                  // (oldUidHint는 서버가 검증한 값이 아니라 참고용 단서일 뿐).
+                  //  (oldUidHint는 서버가 검증한 값이 아니라 참고용 단서일 뿐).
                   return reportMergeFailureFn({ oldUidHint: oldUidBeforeSwitch, reason: 'no-ticket' }).catch(function (reportErr) {
                     console.error('실패 로그 기록도 실패함:', reportErr);
                   });
                 }
-                // 방금 전환한 새 uid로 인증된 상태에서 티켓을 제시해 소유권 이전을 청구
+                //  방금 전환한 새 uid로 인증된 상태에서 티켓을 제시해 소유권 이전을 청구
                 return claimMergeFn({ ticket: ticket }).catch(function (claimErr) {
                   console.error('프리셋 소유권 이전 실패 (서버에 실패 로그가 남았을 수 있음):', claimErr);
                 });
@@ -525,9 +525,9 @@
 
       // 익명 상태면 signInWithPopup(완전히 새 uid로 전환) 대신 linkWithPopup으로
       // 익명 계정을 Google 계정으로 "업그레이드"한다 - uid가 그대로 유지되므로
-      // 익명 상태에서 게시한 프리셋의 ownerUid도 로그인 후 계속 내 소유로 인식된다.
-      // 다만 그 Google 계정이 이미 다른 uid로 가입돼 있으면 link가 실패하고 그 기존
-      // 계정으로 전환되는데(uid가 바뀜), 이 경우를 대비해 지금(=서버가 이 익명 uid를
+      //  익명 상태에서 게시한 프리셋의 ownerUid도 로그인 후 계속 내 소유로 인식된다.
+      //  다만 그 Google 계정이 이미 다른 uid로 가입돼 있으면 link가 실패하고 그 기존
+      //  계정으로 전환되는데(uid가 바뀜), 이 경우를 대비해 지금(=서버가 이 익명 uid를
       // 검증할 수 있는 마지막 시점) 미리 병합 티켓을 발급받아 둔다.
       if (currentUser && currentUser.isAnonymous) {
         return requestMergeTicketFn().then(function (res) {
@@ -594,7 +594,7 @@
   const ROOM_H = 3.1; // 층고
   const ROOM_D = 10;  // 세로(깊이)
 
-  // 방송 송출용 고정 사양 (해상도/비율/화각/구도를 전부 고정)
+  //  방송 송출용 고정 사양 (해상도/비율/화각/구도를 전부 고정)
   const FIXED_ASPECT = 16 / 9;
   const FIXED_FOV = 50; // 스마트폰 기본 카메라에 가까운 화각으로 왜곡을 줄임
 
@@ -605,14 +605,14 @@
   const sidePanel = document.getElementById('sidePanel');
   const panelHandle = document.getElementById('panelHandle');
 
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   // 씬 / 카메라 / 렌더러
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0d0c0b);
 
   const camera = new THREE.PerspectiveCamera(FIXED_FOV, FIXED_ASPECT, 0.1, 100);
-  // 방 코너가 한눈에 들어오는 3/4 구도로 고정 (걸레받이·크라운 몰딩·바닥이 함께 보이도록)
+  //  방 코너가 한눈에 들어오는 3/4 구도로 고정 (걸레받이·크라운 몰딩·바닥이 함께 보이도록)
   camera.position.set(0.2, 1.5, 4.2);
   camera.lookAt(-3.2, 0.9, -4.6);
 
@@ -623,7 +623,7 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  // 피사계 심도(DoF) 포스트프로세싱 - 흐림 세기가 0일 땐 그냥 일반 렌더링으로 우회해서 비용 없음
+  //  피사계 심도(DoF) 포스트프로세싱 - 흐림 세기가 0일 땐 그냥 일반 렌더링으로 우회해서 비용 없음
   const composer = new THREE.EffectComposer(renderer);
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bokehPass = new THREE.BokehPass(scene, camera, {
@@ -642,7 +642,7 @@
 
   // ------------------------------------------------------------
   // 색상 보정 유틸 (플랭크/노이즈 텍스처용)
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   function shadeColor(hex, percent) {
     const f = parseInt(hex.slice(1), 16);
     const t = percent < 0 ? 0 : 255;
@@ -764,12 +764,12 @@
   const furnitureWeaveTex = createWeaveTexture();   // 천(소파/러그/커튼)
 
   // ------------------------------------------------------------
-  // 방(빈 공간) 구성
-  // ------------------------------------------------------------
+  //  방(빈 공간) 구성
+  //  ------------------------------------------------------------
   const ceilingTex = createNoiseTexture('#fbf8f3', 4);
 
   // 벽 재질 (Poly Haven CC0 실사 PBR 텍스처)
-  // 실외 스캔 재질 느낌을 죽이고 실내 도장벽처럼 보이도록 범프/거칠기를 완화하고 밝은 톤으로 틴트함
+  //  실외 스캔 재질 느낌을 죽이고 실내 도장벽처럼 보이도록 범프/거칠기를 완화하고 밝은 톤으로 틴트함
   const texLoader = new THREE.TextureLoader();
   function loadWallMap(path, isColorMap) {
     const tex = texLoader.load(path);
@@ -820,7 +820,7 @@
   room.receiveShadow = true;
   scene.add(room);
 
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   // 걸레받이 (벽-바닥 경계에 몰딩을 둘러 "텍스처 입힌 상자"가 아니라 방처럼 보이게 함)
   // ------------------------------------------------------------
   const BASE_H = 0.09;
@@ -841,9 +841,9 @@
   addBaseboard(BASE_D, BASE_H, ROOM_D, -ROOM_W / 2 + BASE_D / 2, 0);  // 왼쪽 벽
   addBaseboard(BASE_D, BASE_H, ROOM_D, ROOM_W / 2 - BASE_D / 2, 0);   // 오른쪽 벽
 
-  // ------------------------------------------------------------
-  // 크라운 몰딩 (천장-벽 경계, 걸레받이와 같은 논리를 위쪽에 적용)
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
+  //  크라운 몰딩 (천장-벽 경계, 걸레받이와 같은 논리를 위쪽에 적용)
+  //  ------------------------------------------------------------
   const CROWN_H = 0.07;
   const CROWN_D = 0.02;
   const crownY = ROOM_H - CROWN_H / 2;
@@ -864,7 +864,7 @@
 
   // ------------------------------------------------------------
   // 창문 - 왼쪽 벽(박스의 -x면)에 구멍을 뚫고, 그 자리에 구멍 뚫린 벽 패널을 따로 만들어
-  // 끼운다. 박스의 -x면 자체는 숨기고(roomMaterials[1]), 패널은 같은 wallMat을 그대로 써서
+  //  끼운다. 박스의 -x면 자체는 숨기고(roomMaterials[1]), 패널은 같은 wallMat을 그대로 써서
   // 벽지가 바뀌어도 창문 주변 벽면이 항상 나머지 벽과 동일하게 갱신된다.
   // ------------------------------------------------------------
   const WIN_Z_MIN = -2.6, WIN_Z_MAX = -1.0;
@@ -896,7 +896,7 @@
   windowWallPanel.receiveShadow = true;
   scene.add(windowWallPanel);
 
-  // 창틀 (사각 테두리 + 십자 살) - Poly Haven CC0 실사 텍스처(Oak Veneer 01)
+  //  창틀 (사각 테두리 + 십자 살) - Poly Haven CC0 실사 텍스처(Oak Veneer 01)
   function loadExteriorMap(path, isColorMap, repeatX, repeatY) {
     const tex = texLoader.load(path);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -927,7 +927,7 @@
   addWindowFrameBar(WIN_FRAME_T * 0.6, WIN_H, WIN_FRAME_T * 0.6, windowFrameX, winCenterY, winCenterZ);
   addWindowFrameBar(WIN_FRAME_T * 0.6, WIN_FRAME_T * 0.6, WIN_W, windowFrameX, winCenterY, winCenterZ);
 
-  // 유리 (완전 투명이 아니라 은은하게 색이 비치는 정도)
+  //  유리 (완전 투명이 아니라 은은하게 색이 비치는 정도)
   const windowGlassMat = new THREE.MeshStandardMaterial({
     color: 0xbfe0e8, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide
   });
@@ -936,7 +936,7 @@
   windowGlass.position.set(WIN_X + 0.02, winCenterY, winCenterZ);
   scene.add(windowGlass);
 
-  // 창문 너머 바깥 풍경 - 낮/밤 캔버스 텍스처 두 장을 겹쳐두고 visible로만 전환
+  //  창문 너머 바깥 풍경 - 낮/밤 캔버스 텍스처 두 장을 겹쳐두고 visible로만 전환
   function createSkyTexture(mode) {
     const w = 512, h = 384;
     const cvs = document.createElement('canvas');
@@ -1002,7 +1002,7 @@
 
   // 하늘을 창문에서 더 멀리 뒤로 뺄수록, 창문 시야각을 꽉 채우려면 판 크기도 그만큼 키워야 한다
   // (카메라가 창문을 정면이 아니라 비스듬히 보고 있어서, 넉넉하게 키우지 않으면 모서리에 배경이
-  // 안 채워진 빈틈이 생긴다)
+  //  안 채워진 빈틈이 생긴다)
   const outdoorBackdropW = (WIN_W + 1.2) * 2.6, outdoorBackdropH = (WIN_H + 1.0) * 2.6;
   const outdoorDayMat = new THREE.MeshBasicMaterial({ map: createSkyTexture('day'), side: THREE.DoubleSide });
   const outdoorNightMat = new THREE.MeshBasicMaterial({ map: createSkyTexture('night'), side: THREE.DoubleSide, visible: false });
@@ -1015,8 +1015,8 @@
   outdoorNightMesh.position.copy(outdoorDayMesh.position);
   scene.add(outdoorNightMesh);
 
-  // 담벼락 - 하늘 배경보다 창문에 더 가깝게 세워서 앞을 가린다. 바닥(y=0)부터 세우는데 높이를
-  // 창문 높이의 1/3로만 잡아서, 창문으로 보이는 부분은 아래 1/3만 담이고 위 2/3는 하늘이 보인다.
+  //  담벼락 - 하늘 배경보다 창문에 더 가깝게 세워서 앞을 가린다. 바닥(y=0)부터 세우는데 높이를
+  //  창문 높이의 1/3로만 잡아서, 창문으로 보이는 부분은 아래 1/3만 담이고 위 2/3는 하늘이 보인다.
   const FENCE_TOP_Y = WIN_Y_MIN + WIN_H / 3;
   const fenceMat = new THREE.MeshStandardMaterial({
     color: 0xdedede, roughness: 0.85,
@@ -1032,7 +1032,7 @@
   scene.add(fenceMesh);
 
   // 담이 창문에 딱 붙어 보이지 않도록, 창문 안쪽 리빌(창틀 두께)이 담 위쪽에 그림자를 드리우는
-  // 것처럼 반투명 그라디언트를 담벼락보다 살짝 카메라 쪽(안쪽)에 겹쳐서 "떨어져 있는" 느낌을 준다
+  //  것처럼 반투명 그라디언트를 담벼락보다 살짝 카메라 쪽(안쪽)에 겹쳐서 "떨어져 있는" 느낌을 준다
   function createShadowGradientTexture() {
     const w = 64, h = 256;
     const cvs = document.createElement('canvas');
@@ -1057,7 +1057,7 @@
 
   // 커튼 (창문 좌우로, 천장 몰딩 바로 아래부터 바닥까지 늘어뜨린 패널) - Poly Haven CC0 실사 텍스처(Cotton Jersey)
   // 실사 텍스처 원본 색이 벽(베이지)과 거의 같아서 그대로 두면 커튼이 벽에 묻혀 안 보임 -
-  // 짜임 디테일은 그대로 살리되 색만 살짝 톤을 줘서 벽과 구분되게 함
+  //  짜임 디테일은 그대로 살리되 색만 살짝 톤을 줘서 벽과 구분되게 함
   const curtainMat = new THREE.MeshStandardMaterial({
     color: 0xd9c39e, roughness: 0.95, side: THREE.DoubleSide,
     map: loadExteriorMap('textures/curtain/diffuse.jpg', true, 1, 3),
@@ -1133,9 +1133,9 @@
   artMesh.position.set(artX, artY, artZ + 0.035);
   scene.add(artMesh);
 
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   // 조명
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   const hemi = new THREE.HemisphereLight(0xffffff, 0x6b6152, 0.95);
   scene.add(hemi);
 
@@ -1172,12 +1172,12 @@
   const TIME_KEY = 'interior3dViewer.timeOfDay';
   let timeOfDay = localStorage.getItem(TIME_KEY) === 'night' ? 'night' : 'day';
 
-  // 은은한 달빛 - 밤에도 방이 완전한 암흑이 되지 않도록 아주 약하게만
+  //  은은한 달빛 - 밤에도 방이 완전한 암흑이 되지 않도록 아주 약하게만
   const moonHemi = new THREE.HemisphereLight(0x263a5c, 0x05050a, 0);
   scene.add(moonHemi);
 
   // 가구 "조명(램프)" 위치를 따라다니는 point light - 밤에만 켜지고, distance/decay로
-  // 램프에서 멀어질수록 확실히 어두워지게 한다. 램프가 배치돼 있지 않으면 계속 꺼진 채로 둔다.
+  //  램프에서 멀어질수록 확실히 어두워지게 한다. 램프가 배치돼 있지 않으면 계속 꺼진 채로 둔다.
   const LAMP_LIGHT_DISTANCE = 4.2;
   const LAMP_LIGHT_INTENSITY = 1.4;
   const lampNightLight = new THREE.PointLight(0xffcf9e, 0, LAMP_LIGHT_DISTANCE, 2);
@@ -1205,7 +1205,7 @@
   refreshTimeOfDayLighting();
 
   // ------------------------------------------------------------
-  // 가구 (카테고리별 여러 스타일 - 우측 패널에서 선택, localStorage에 자동 저장)
+  //  가구 (카테고리별 여러 스타일 - 우측 패널에서 선택, localStorage에 자동 저장)
   // 러그는 프리미티브 유지, 책장/소파/조명/화분은 실제 glTF 모델(Kenney CC0)로 교체
   // ------------------------------------------------------------
 
@@ -1232,7 +1232,7 @@
       shape.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
     }
 
-    // 윗면 가장자리만 둥글게 베벨 처리 (바닥에 닿는 아랫면은 안 보이므로 생략)
+    //  윗면 가장자리만 둥글게 베벨 처리 (바닥에 닿는 아랫면은 안 보이므로 생략)
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: thickness,
       bevelEnabled: true,
@@ -1252,7 +1252,7 @@
     return g;
   }
 
-  // Kenney "Furniture Kit" (CC0) glTF 모델 로더 + 캐시 (같은 모델 재선택 시 재다운로드 없이 clone)
+  //  Kenney "Furniture Kit" (CC0) glTF 모델 로더 + 캐시 (같은 모델 재선택 시 재다운로드 없이 clone)
   const gltfLoader = new THREE.GLTFLoader();
   const modelCache = {};
   function loadFurnitureModel(url) {
@@ -1285,7 +1285,7 @@
     sofa: {
       label: '소파',
       // Poly Haven CC0 실사 PBR 모델(Sofa 03)로 완전 교체 - 자체 디퓨즈/노멀/러프니스
-      // 텍스처가 이미 있어서 furnitureWeaveTex는 자동으로 안 덧씌워짐(place()의 !m.map 가드)
+      //  텍스처가 이미 있어서 furnitureWeaveTex는 자동으로 안 덧씌워짐(place()의 !m.map 가드)
       styles: [
         { id: 'sofa03', short: 'Sofa 03', model: 'models/furniture/sofa03/sofa_03.gltf', scale: 0.68 }
       ],
@@ -1319,7 +1319,7 @@
     },
     coffeeTable: {
       label: '커피 테이블',
-      // Poly Haven CC0 실사 PBR 모델(Gothic Coffee Table)로 완전 교체
+      //  Poly Haven CC0 실사 PBR 모델(Gothic Coffee Table)로 완전 교체
       styles: [
         { id: 'gothic', short: 'Gothic Coffee Table', model: 'models/furniture/gothic_coffee_table/gothic_coffee_table.gltf', scale: 0.68 }
       ],
@@ -1339,7 +1339,7 @@
   const furnitureGroup = new THREE.Group();
   scene.add(furnitureGroup);
 
-  // 배치돼 있던 가구를 전부 비움 (패널의 가구 선택 UI를 없앤 것과 함께, 이제 프리셋을 통해서만 채워짐)
+  //  배치돼 있던 가구를 전부 비움 (패널의 가구 선택 UI를 없앤 것과 함께, 이제 프리셋을 통해서만 채워짐)
   let furnitureState = {};
   localStorage.removeItem(FURNITURE_KEY);
 
@@ -1406,7 +1406,7 @@
       if (style.model) {
         loadFurnitureModel(style.model).then(function (template) {
           const inner = template.clone(true);
-          // 모델 원점이 바닥 모서리에 있는 경우가 많아 x/z만 중앙으로 재정렬 (y는 바닥 접지 그대로 유지)
+          //  모델 원점이 바닥 모서리에 있는 경우가 많아 x/z만 중앙으로 재정렬 (y는 바닥 접지 그대로 유지)
           const box = new THREE.Box3().setFromObject(inner);
           const cx = (box.min.x + box.max.x) / 2;
           const cz = (box.min.z + box.max.z) / 2;
@@ -1447,9 +1447,9 @@
   rebuildFurniture();
   refreshPickerUI();
 
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   // 벽지 / 몰딩 / 바닥 - 단일 선택(항상 하나는 활성), localStorage에 자동 저장
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   const WALL_KEY = 'interior3dViewer.wallStyle';
   const MOLDING_KEY = 'interior3dViewer.moldingStyle';
   const FLOOR_KEY = 'interior3dViewer.floorStyle';
@@ -1503,13 +1503,13 @@
     floorMat.needsUpdate = true;
   }
 
-  // 저장된 값이 기본값과 다르면 실제로 적용
+  //  저장된 값이 기본값과 다르면 실제로 적용
   if (wallStyleId !== WALL_STYLES[0].id) applyWallStyle(wallStyleId);
   if (moldingStyleId !== MOLDING_STYLES[0].id) applyMoldingStyle(moldingStyleId);
   if (floorStyleId !== FLOOR_STYLES[0].id) applyFloorStyle(floorStyleId);
   refreshRoomPickerUI();
 
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   // 줌 단계 (1x/2x/3x) - camera.zoom으로 화각/구도 왜곡 없이 중앙 확대
   // ------------------------------------------------------------
   const ZOOM_KEY = 'interior3dViewer.zoom';
@@ -1533,7 +1533,7 @@
 
   // ------------------------------------------------------------
   // 화면 후보정 (밝기/대비/채도/색온도/비네트) - CSS 필터 기반이라 OBS 캡처에도 그대로 반영됨
-  // ------------------------------------------------------------
+  //  ------------------------------------------------------------
   const ADJUST_KEY = 'interior3dViewer.adjust';
   const ADJUST_DEFAULTS = { brightness: 1, contrast: 1, saturation: 1, warmth: 0, vignette: 0.35, blur: 0, dofFocus: 4, dofBlur: 0 };
 
@@ -1592,8 +1592,8 @@
   applyAdjust();
 
   // ------------------------------------------------------------
-  // 프리셋 - 현재 벽지/몰딩/바닥/가구 배치/줌/보정 값을 통째로 저장하고 다시 불러옴
-  // ------------------------------------------------------------
+  //  프리셋 - 현재 벽지/몰딩/바닥/가구 배치/줌/보정 값을 통째로 저장하고 다시 불러옴
+  //  ------------------------------------------------------------
   const PRESETS_KEY = 'interior3dViewer.presets';
   let presets = {};
   try {
@@ -1671,7 +1671,7 @@
     });
   }
 
-  // renderPresetList가 초기 로드 시 즉시 호출되므로(아래 계정 상태 섹션보다 먼저 실행),
+  //  renderPresetList가 초기 로드 시 즉시 호출되므로(아래 계정 상태 섹션보다 먼저 실행),
   // 이 두 변수는 반드시 그 호출 이전에 선언돼 있어야 한다 (let의 TDZ로 인한 참조 오류 방지).
   let currentUidForGallery = null;
   let isAdminForGallery = false;
@@ -1735,7 +1735,7 @@
       });
       row.appendChild(shareBtn);
 
-      // OBS 링크 - 공유 링크와 달리 항상 실제 씬 파일(또는 이 방 설정이면 index.html)에
+      //  OBS 링크 - 공유 링크와 달리 항상 실제 씬 파일(또는 이 방 설정이면 index.html)에
       // ?obs=1을 붙여서, OBS 브라우저 소스로 추가하자마자(window.obsstudio 주입을
       // 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 바로 시작하게 한다.
       const obsBtn = document.createElement('button');
@@ -1757,7 +1757,7 @@
       });
       row.appendChild(obsBtn);
 
-      // 공개 갤러리 게시는 관리자 전용 - 비관리자는 이미 게시된 프리셋을 불러오기만 할 수 있다
+      //  공개 갤러리 게시는 관리자 전용 - 비관리자는 이미 게시된 프리셋을 불러오기만 할 수 있다
       if (isAdminForGallery) {
         const publishBtn = document.createElement('button');
         publishBtn.className = 'preset-btn';
@@ -1812,8 +1812,8 @@
 
   renderPresetList();
 
-  // ------------------------------------------------------------
-  // 계정 상태 - 익명/Google 로그인. 모듈 스크립트(Firebase)가 이 스크립트보다 늦게
+  //  ------------------------------------------------------------
+  //  계정 상태 - 익명/Google 로그인. 모듈 스크립트(Firebase)가 이 스크립트보다 늦게
   // 준비될 수 있어서 이벤트로만 연결한다 (window.__firebaseAuth를 직접 참조하지 않음).
   // ------------------------------------------------------------
   const authStatusEl = document.getElementById('authStatus');
@@ -1825,7 +1825,7 @@
     isAdminForGallery = !!(detail && detail.isAdmin);
     authBtnEl.disabled = false;
     if (detail && detail.isRealAccount) {
-      // 닉네임/이메일은 화면(방송)에 노출하지 않고 로그인 여부만 표시
+      //  닉네임/이메일은 화면(방송)에 노출하지 않고 로그인 여부만 표시
       authStatusEl.textContent = isAdminForGallery ? '로그인됨 (관리자)' : '로그인됨';
       authBtnEl.textContent = '로그아웃';
     } else {
@@ -1835,14 +1835,14 @@
     document.getElementById('addSceneLinkBtn').style.display = isAdminForGallery ? '' : 'none';
     // 일반 유저는 로컬에 프리셋을 저장/관리하는 세션 자체가 필요 없다 - 갤러리에
     // 이미 게시된 프리셋을 적용/OBS 링크 복사만 하면 된다. 관리자만 이 섹션으로
-    // 새 프리셋을 만들고 게시할 수 있다.
+    //  새 프리셋을 만들고 게시할 수 있다.
     document.getElementById('localPresetSection').style.display = isAdminForGallery ? '' : 'none';
     renderPresetList();
     renderGalleryOwnership();
   }
 
-  // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는 프리셋을
-  // 로컬 목록에 추가 - 이후 그 프리셋 줄의 "게시" 버튼을 누르면 관리자 인증을 거쳐
+  //  인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는 프리셋을
+  //  로컬 목록에 추가 - 이후 그 프리셋 줄의 "게시" 버튼을 누르면 관리자 인증을 거쳐
   // 정상적으로 갤러리에 게시된다 (uid는 항상 그 브라우저의 실제 로그인 세션에서 나옴)
   document.getElementById('addSceneLinkBtn').addEventListener('click', function () {
     const name = window.prompt('프리셋 이름을 입력하세요 (예: 기본 프리셋 2):');
@@ -1873,9 +1873,9 @@
   window.addEventListener('firebase-auth-changed', function (e) { updateAuthUI(e.detail); });
 
   // ------------------------------------------------------------
-  // 낮/밤 토글 - applyTimeOfDay/timeOfDay는 같은 스크립트 안(위쪽 조명 섹션)에 이미
-  // 정의돼 있어서 Firebase처럼 이벤트로 연결할 필요 없이 바로 호출하면 된다.
-  // ------------------------------------------------------------
+  //  낮/밤 토글 - applyTimeOfDay/timeOfDay는 같은 스크립트 안(위쪽 조명 섹션)에 이미
+  //  정의돼 있어서 Firebase처럼 이벤트로 연결할 필요 없이 바로 호출하면 된다.
+  //  ------------------------------------------------------------
   const timeStatusEl = document.getElementById('timeStatus');
   const timeToggleBtnEl = document.getElementById('timeToggleBtn');
 
@@ -1897,7 +1897,7 @@
   updateTimeUI();
 
   // ------------------------------------------------------------
-  // 공개 갤러리 - Firebase RTDB의 presetGallery 노드를 실시간 구독해서 목록으로 표시
+  //  공개 갤러리 - Firebase RTDB의 presetGallery 노드를 실시간 구독해서 목록으로 표시
   // 모듈 스크립트(Firebase)가 이 스크립트보다 늦게 준비될 수 있어서 이벤트로 연결
   // ------------------------------------------------------------
   let lastGalleryEntries = null;
@@ -1929,7 +1929,7 @@
       const label = document.createElement('span');
       label.className = 'preset-name';
       label.textContent = entry.name || '(이름 없음)';
-      // 이름 변경(더블클릭)은 관리자만 - 서버(updatePreset)도 requireAdmin으로
+      //  이름 변경(더블클릭)은 관리자만 - 서버(updatePreset)도 requireAdmin으로
       // 검증하지만, 비관리자에겐 애초에 그런 조작이 가능한 것처럼 보이지 않게 한다.
       if (isAdminForGallery) {
         label.title = (entry.name || '') + ' (더블클릭하여 이름 변경)';
@@ -1957,9 +1957,9 @@
         const statsDone = window.__firebaseGallery.incrementApplyCount(key).catch(function (err) { console.error('적용 횟수 집계 실패:', err); }); // 통계용, 실패해도 실제 적용은 막지 않음
         // 인테리어 방 설정이 아니라 완전히 다른 배경 페이지(스키장 등)로 연결되는
         // 프리셋 - sceneUrl이 있으면 방 설정을 적용하는 대신 그 페이지로 이동한다.
-        // 다만 곧바로 location.href를 바꾸면 브라우저가 페이지를 떠나면서 방금 보낸
+        //  다만 곧바로 location.href를 바꾸면 브라우저가 페이지를 떠나면서 방금 보낸
         // 집계 요청(네트워크 왕복 필요)을 응답 받기 전에 취소해버려 카운트가 전혀
-        // 안 올라가는 문제가 있었다 - 로딩 모달을 띄워 집계 요청이 실제로 끝난 뒤에만
+        //  안 올라가는 문제가 있었다 - 로딩 모달을 띄워 집계 요청이 실제로 끝난 뒤에만
         // 이동한다(완전히 끊긴 네트워크 등 극단적인 경우에 사용자가 갇히지 않도록
         // 5초 안전장치만 둔다 - 정상 상황에서는 항상 실제 응답을 기다려 이동한다).
         if (entry.config.sceneUrl) {
@@ -1982,7 +1982,7 @@
 
       // OBS 링크 - sceneUrl 프리셋이면 그 배경 페이지로 바로, 방 설정 프리셋이면
       // index.html로 연결하고 둘 다 ?obs=1을 붙여서 OBS 브라우저 소스로 추가하자마자
-      // (window.obsstudio 주입을 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 시작한다.
+      //  (window.obsstudio 주입을 기다릴 필요 없이) 패널·상단바 없이 꽉 찬 화면으로 시작한다.
       const obsBtn = document.createElement('button');
       obsBtn.className = 'preset-btn';
       obsBtn.type = 'button';
@@ -2005,7 +2005,7 @@
 
       // 게시/수정/삭제는 관리자 전용 - 비관리자는 적용·OBS 링크 복사만 가능
       if (isAdminForGallery) {
-        // sceneUrl(다른 배경 페이지로 연결) 프리셋은 "지금 화면 설정"으로 덮어쓸 대상이
+        //  sceneUrl(다른 배경 페이지로 연결) 프리셋은 "지금 화면 설정"으로 덮어쓸 대상이
         // 아니므로 수정 버튼은 방 설정 프리셋에서만 보여준다
         if (!entry.config.sceneUrl) {
           const editBtn = document.createElement('button');
@@ -2062,7 +2062,7 @@
     window.addEventListener('firebase-gallery-ready', initGalleryBridge);
   }
 
-  // URL에 ?preset=... 이 붙어서 들어오면 자동으로 불러와서 적용 + 내 프리셋 목록에도 저장
+  //  URL에 ?preset=... 이 붙어서 들어오면 자동으로 불러와서 적용 + 내 프리셋 목록에도 저장
   (function importPresetFromURL() {
     const params = new URLSearchParams(location.search);
     const encoded = params.get('preset');
@@ -2089,8 +2089,8 @@
     history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
   })();
 
-  // ------------------------------------------------------------
-  // 더블클릭으로 전체화면 전환/복귀
+  //  ------------------------------------------------------------
+  //  더블클릭으로 전체화면 전환/복귀
   // ------------------------------------------------------------
   canvas.addEventListener('dblclick', function () {
     if (document.fullscreenElement) {
@@ -2103,12 +2103,12 @@
   });
 
   // ------------------------------------------------------------
-  // 리사이즈 - 창 크기가 바뀌어도 16:9 비율만 유지한 채 중앙에 맞춤 (레터박스)
-  // ------------------------------------------------------------
+  //  리사이즈 - 창 크기가 바뀌어도 16:9 비율만 유지한 채 중앙에 맞춤 (레터박스)
+  //  ------------------------------------------------------------
   const appEl = document.getElementById('app');
 
   function fitCanvas() {
-    // devbar가 자기 높이만큼 공간을 차지하므로, window 전체가 아니라
+    //  devbar가 자기 높이만큼 공간을 차지하므로, window 전체가 아니라
     // #app에 실제로 남은 영역(flex 계산 후) 기준으로 16:9를 맞춘다.
     const rect = appEl.getBoundingClientRect();
     const ww = rect.width;
@@ -2137,11 +2137,11 @@
   // obs-browser 플러그인은 실제 방송 소스로 렌더링될 때 window.obsstudio를 주입함.
   // 이 값이 있으면 OBS가 직접 캡처 중인 것이므로 설정 패널/devbar를 아예 숨겨서
   // 방송 화면은 항상 깨끗하게 나오고, 스트리머는 일반 브라우저 탭으로 열어 설정하면 됨.
-  // devbar가 사라지면 #app이 차지하는 높이가 늘어나므로 fitCanvas를 다시 호출한다.
-  // URL에 ?obs=1이 있어도 동일하게 취급한다 — "OBS" 프리셋 링크가 이 파라미터를
+  //  devbar가 사라지면 #app이 차지하는 높이가 늘어나므로 fitCanvas를 다시 호출한다.
+  //  URL에 ?obs=1이 있어도 동일하게 취급한다 — "OBS" 프리셋 링크가 이 파라미터를
   // 붙여서, window.obsstudio 주입 타이밍에 기대지 않고 로드 즉시 확실하게 꽉 찬
-  // 화면으로 시작하게 하고, 일반 브라우저 탭에서도 같은 링크로 미리 확인 가능하다.
-  // ------------------------------------------------------------
+  //  화면으로 시작하게 하고, 일반 브라우저 탭에서도 같은 링크로 미리 확인 가능하다.
+  //  ------------------------------------------------------------
   const inOBS = !!window.obsstudio || new URLSearchParams(location.search).get('obs') === '1';
   if (inOBS) {
     sidePanel.style.display = 'none';
@@ -2149,7 +2149,7 @@
     fitCanvas();
   }
 
-  // 전체화면일 땐 설정 패널과 devbar를 숨겨서 화면을 가리지 않게 한다 (OBS 모드에서는
+  //  전체화면일 땐 설정 패널과 devbar를 숨겨서 화면을 가리지 않게 한다 (OBS 모드에서는
   // 원래도 항상 숨겨져 있으니 그 상태를 건드리지 않는다). devbar는 일반 흐름(flex)을
   // 차지하는 요소라 사라지면 #app 크기가 바뀌므로 fitCanvas를 다시 호출해야 한다.
   const devbarEl = document.getElementById('devbar');
@@ -2163,7 +2163,7 @@
 
   // ------------------------------------------------------------
   // devbar 자동 스크롤(마퀴) - 콘텐츠가 보이는 영역보다 넘칠 때만 동작.
-  // 트랙을 통째로 복제해서 뒤에 이어붙이고, 원본 폭만큼만 이동 후 리셋되는
+  //  트랙을 통째로 복제해서 뒤에 이어붙이고, 원본 폭만큼만 이동 후 리셋되는
   // translateX(-50%) 애니메이션으로 이음매 없이 무한 반복되게 한다.
   // ------------------------------------------------------------
   (function setupDevbarMarquee() {
@@ -2208,10 +2208,10 @@
   let panelDragging = false;
   let panelDragOffsetX = 0, panelDragOffsetY = 0;
 
-  // sidePanel의 top/left는 CSS상 위치가 정해진 조상인 #app 기준 좌표인데, e.clientX/Y와
-  // getBoundingClientRect()는 항상 뷰포트 기준 좌표라서 그대로 섞어 쓰면 #app이 뷰포트
+  //  sidePanel의 top/left는 CSS상 위치가 정해진 조상인 #app 기준 좌표인데, e.clientX/Y와
+  //  getBoundingClientRect()는 항상 뷰포트 기준 좌표라서 그대로 섞어 쓰면 #app이 뷰포트
   // 맨 위에 딱 붙어있을 때만 우연히 맞아떨어진다. devbar가 생기면서 #app이 뷰포트 상단에서
-  // 내려간 만큼 어긋나(드래그 시작하자마자 패널이 아래로 튀는 버그) - 아래 함수들로 항상
+  //  내려간 만큼 어긋나(드래그 시작하자마자 패널이 아래로 튀는 버그) - 아래 함수들로 항상
   // "#app 기준 좌표"로 변환해서 다룬다.
   function clampPanelPos(left, top) {
     const rect = sidePanel.getBoundingClientRect();
@@ -2247,11 +2247,11 @@
 
   panelHandle.addEventListener('pointermove', function (e) {
     if (!panelDragging) return;
-    // pointerup/pointercancel을 놓쳐서 panelDragging이 true로 눌러붙어 있으면(예: 드래그 도중
+    //  pointerup/pointercancel을 놓쳐서 panelDragging이 true로 눌러붙어 있으면(예: 드래그 도중
     // alt-tab, 브라우저 제스처 등으로 release 이벤트가 유실된 경우) 버튼을 안 눌렀는데도
     // 마우스를 핸들 위로 올리기만 해도(pointermove는 버튼 여부와 무관하게 발생) 패널이 갑자기
-    // 따라 움직이는 버그가 생긴다. 매 move마다 주 버튼이 실제로 눌려있는지 다시 확인해서
-    // 아니라면 그 자리에서 드래그 상태를 취소한다.
+    //  따라 움직이는 버그가 생긴다. 매 move마다 주 버튼이 실제로 눌려있는지 다시 확인해서
+    //  아니라면 그 자리에서 드래그 상태를 취소한다.
     if ((e.buttons & 1) === 0) { stopPanelDrag(); return; }
     const appRect = appEl.getBoundingClientRect();
     const clamped = clampPanelPos(e.clientX - panelDragOffsetX - appRect.left, e.clientY - panelDragOffsetY - appRect.top);
@@ -2267,7 +2267,7 @@
     try { panelHandle.releasePointerCapture(e.pointerId); } catch (err) {}
   });
 
-  // pointerup이 아니라 pointercancel로 끝나는 경우(터치 제스처가 스크롤/줌으로 해석되거나
+  //  pointerup이 아니라 pointercancel로 끝나는 경우(터치 제스처가 스크롤/줌으로 해석되거나
   // 브라우저가 캡처를 강제로 해제하는 경우 등)에도 반드시 드래그 상태를 정리해야 한다.
   panelHandle.addEventListener('pointercancel', stopPanelDrag);
 
@@ -2290,7 +2290,7 @@
   });
 
   // ------------------------------------------------------------
-  // 렌더 루프 (카메라/구도 고정 - 상호작용 없음)
+  //  렌더 루프 (카메라/구도 고정 - 상호작용 없음)
   // ------------------------------------------------------------
   function animate() {
     requestAnimationFrame(animate);
