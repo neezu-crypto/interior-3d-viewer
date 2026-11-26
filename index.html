@@ -382,6 +382,8 @@
     appId: "1:997788925900:web:b58db2970489bf18a3a769"
   };
 
+  // 메인만 보기(점검 중)에는 게이트가 풀어 줄 때까지 Firebase를 시작하지 않는다(DB·서버 호출 0건, 2026-11-27).
+  if (window.__seriesAppReady) await window.__seriesAppReady;
   const app = initializeApp(firebaseConfig);
 
   //  프리셋 저장·수정·삭제·계정 병합 callable은 서버가 App Check를 강제한다(2026-11-14).
